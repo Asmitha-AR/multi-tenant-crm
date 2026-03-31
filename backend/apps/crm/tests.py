@@ -1,9 +1,11 @@
 import shutil
 import tempfile
+from datetime import timedelta
 from io import BytesIO
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
+from django.utils import timezone
 from PIL import Image
 from rest_framework.test import APITestCase
 
@@ -278,6 +280,51 @@ class CRMApiTests(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("results", response.json()["data"])
+
+    def test_activity_logs_support_action_model_user_and_date_filters(self):
+        older_log = ActivityLog.objects.create(
+            user=self.alpha_admin,
+            organization=self.alpha,
+            action="CREATE",
+            model_name="Company",
+            object_id=101,
+        )
+        newer_log = ActivityLog.objects.create(
+            user=self.alpha_manager,
+            organization=self.alpha,
+            action="UPDATE",
+            model_name="Contact",
+            object_id=202,
+        )
+        ActivityLog.objects.filter(id=older_log.id).update(created_at=timezone.now() - timedelta(days=3))
+        ActivityLog.objects.filter(id=newer_log.id).update(created_at=timezone.now())
+
+        self.authenticate("alpha_admin_test", "alpha12345")
+
+        action_response = self.client.get("/api/v1/activity-logs/?action=UPDATE")
+        self.assertEqual(action_response.status_code, 200)
+        self.assertTrue(
+            all(item["action"] == "UPDATE" for item in action_response.json()["data"]["results"])
+        )
+
+        model_response = self.client.get("/api/v1/activity-logs/?model=Contact")
+        self.assertEqual(model_response.status_code, 200)
+        self.assertTrue(
+            all(item["model_name"] == "Contact" for item in model_response.json()["data"]["results"])
+        )
+
+        user_response = self.client.get("/api/v1/activity-logs/?user=alpha_manager")
+        self.assertEqual(user_response.status_code, 200)
+        self.assertTrue(
+            all("alpha_manager" in item["performed_by"] for item in user_response.json()["data"]["results"])
+        )
+
+        today = timezone.now().date().isoformat()
+        date_response = self.client.get(f"/api/v1/activity-logs/?date_from={today}&date_to={today}")
+        self.assertEqual(date_response.status_code, 200)
+        self.assertTrue(
+            all(item["id"] != older_log.id for item in date_response.json()["data"]["results"])
+        )
 
     def test_basic_plan_cannot_upload_company_logo(self):
         self.authenticate("beta_admin_test", "beta12345")
