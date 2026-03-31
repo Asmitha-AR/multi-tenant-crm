@@ -28,6 +28,7 @@ export function CompanyListPage() {
   const [form, setForm] = useState({ name: "", industry: "", country: "" });
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [removeLogo, setRemoveLogo] = useState(false);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
 
   const editingCompany = useMemo(
     () => companies.find((company) => company.id === editingId) ?? null,
@@ -127,6 +128,7 @@ export function CompanyListPage() {
       setEditingId(null);
       setLogoFile(null);
       setRemoveLogo(false);
+      setShowCreateDialog(false);
       await loadCompanies();
     } catch (submitError: any) {
       const errors = submitError.response?.data?.errors;
@@ -172,6 +174,14 @@ export function CompanyListPage() {
     setCountryFilter("");
   }
 
+  function resetEditorState() {
+    setEditingId(null);
+    setForm({ name: "", industry: "", country: "" });
+    setLogoFile(null);
+    setRemoveLogo(false);
+    setShowCreateDialog(false);
+  }
+
   return (
     <section className="companies-shell">
       <div className="page-hero">
@@ -207,6 +217,21 @@ export function CompanyListPage() {
           <span>{numPages} pages</span>
           <strong>{isProPlan ? "Pro workspace" : "Basic workspace"}</strong>
         </div>
+        {canEdit ? (
+          <button
+            className="primary-button company-toolbar-button"
+            type="button"
+            onClick={() => {
+              setEditingId(null);
+              setForm({ name: "", industry: "", country: "" });
+              setLogoFile(null);
+              setRemoveLogo(false);
+              setShowCreateDialog(true);
+            }}
+          >
+            Create New Company
+          </button>
+        ) : null}
       </div>
 
       <div className="filter-card">
@@ -247,13 +272,14 @@ export function CompanyListPage() {
         </div>
       </div>
 
-      <form className="company-form-card" onSubmit={handleSubmit}>
+      {editingId ? (
+        <form className="company-form-card" onSubmit={handleSubmit}>
         <div className="company-form-header">
           <div>
             <p className="page-kicker">Company Editor</p>
-            <h3>{editingId ? "Refine company details" : "Create a new company"}</h3>
+            <h3>Refine company details</h3>
           </div>
-          <p>{editingId ? "Update identity, market, or country information." : "Add a new account and keep your client portfolio structured."}</p>
+          <p>Update identity, market, or country information.</p>
         </div>
 
         <div className="company-form-grid">
@@ -335,24 +361,14 @@ export function CompanyListPage() {
 
         <div className="actions">
           <button className="primary-button" type="submit">
-            {editingId ? "Update Company" : "Create Company"}
+            Update Company
           </button>
-          {editingId ? (
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={() => {
-                setEditingId(null);
-                setForm({ name: "", industry: "", country: "" });
-                setLogoFile(null);
-                setRemoveLogo(false);
-              }}
-            >
-              Cancel
-            </button>
-          ) : null}
+          <button className="secondary-button" type="button" onClick={resetEditorState}>
+            Cancel
+          </button>
         </div>
       </form>
+      ) : null}
 
       {loading ? <div className="feedback-card"><strong>Loading companies</strong><p>Please wait while we refresh the company directory.</p></div> : null}
       {error ? (
@@ -439,6 +455,92 @@ export function CompanyListPage() {
           Next
         </button>
       </div>
+
+      {showCreateDialog ? (
+        <div className="modal-backdrop" role="presentation" onClick={resetEditorState}>
+          <div
+            className="modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="create-company-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="modal-header">
+              <div>
+                <p className="page-kicker">Company Editor</p>
+                <h3 id="create-company-title">Create a new company</h3>
+              </div>
+              <button className="secondary-button" type="button" onClick={resetEditorState}>
+                Close
+              </button>
+            </div>
+
+            <form className="modal-form" onSubmit={handleSubmit}>
+              <div className="company-form-grid">
+                <label className="form-field">
+                  <span>Company name</span>
+                  <input
+                    value={form.name}
+                    onChange={(e) => setForm((current) => ({ ...current, name: e.target.value }))}
+                    placeholder="Atlas Trading"
+                    required
+                  />
+                </label>
+                <label className="form-field">
+                  <span>Industry</span>
+                  <input
+                    value={form.industry}
+                    onChange={(e) => setForm((current) => ({ ...current, industry: e.target.value }))}
+                    placeholder="Logistics"
+                    required
+                  />
+                </label>
+                <label className="form-field">
+                  <span>Country</span>
+                  <input
+                    value={form.country}
+                    onChange={(e) => setForm((current) => ({ ...current, country: e.target.value }))}
+                    placeholder="Sri Lanka"
+                    required
+                  />
+                </label>
+                <div className="form-field logo-field">
+                  <span>Logo</span>
+                  {isProPlan ? (
+                    <div className="logo-uploader">
+                      <div className="logo-preview-card">
+                        {logoPreviewUrl && !removeLogo ? (
+                          <img className="company-logo logo-preview-image" src={logoPreviewUrl} alt="Selected logo preview" />
+                        ) : (
+                          <div className="company-logo company-logo-placeholder logo-preview-image">
+                            {form.name ? form.name.slice(0, 2).toUpperCase() : "LG"}
+                          </div>
+                        )}
+                        <div className="logo-preview-copy">
+                          <strong>{logoFile ? "New logo selected" : "No logo uploaded"}</strong>
+                          <p>PNG or JPG up to 5 MB. Upload a logo now or add it later from the company workspace.</p>
+                        </div>
+                      </div>
+                      <input type="file" accept="image/*" onChange={(e) => handleLogoSelection(e.target.files?.[0] ?? null)} />
+                    </div>
+                  ) : (
+                    <p className="plan-note">Logo upload is available on the Pro plan.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="actions">
+                <button className="primary-button" type="submit">
+                  Create Company
+                </button>
+                <button className="secondary-button" type="button" onClick={resetEditorState}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

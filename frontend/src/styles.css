@@ -986,6 +986,11 @@ button {
   justify-content: space-between;
   gap: 16px;
   align-items: end;
+  flex-wrap: wrap;
+}
+
+.company-toolbar-button {
+  margin-left: auto;
 }
 
 .search-field,
