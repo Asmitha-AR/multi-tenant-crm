@@ -45,18 +45,25 @@ export function CompanyListPage() {
     event.preventDefault();
     setError("");
     try {
-      const payload = new FormData();
-      payload.append("name", form.name);
-      payload.append("industry", form.industry);
-      payload.append("country", form.country);
-      if (logoFile) {
-        payload.append("logo", logoFile);
-      }
       if (editingId) {
-        await apiClient.patch(`/companies/${editingId}/`, payload, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
+        if (logoFile) {
+          const payload = new FormData();
+          payload.append("name", form.name);
+          payload.append("industry", form.industry);
+          payload.append("country", form.country);
+          payload.append("logo", logoFile);
+          await apiClient.patch(`/companies/${editingId}/`, payload);
+        } else {
+          await apiClient.patch(`/companies/${editingId}/`, form);
+        }
       } else {
+        const payload = new FormData();
+        payload.append("name", form.name);
+        payload.append("industry", form.industry);
+        payload.append("country", form.country);
+        if (logoFile) {
+          payload.append("logo", logoFile);
+        }
         await apiClient.post("/companies/", payload, {
           headers: { "Content-Type": "multipart/form-data" },
         });
@@ -68,7 +75,17 @@ export function CompanyListPage() {
       setCompanies(response.data.data.results);
       setNumPages(response.data.data.num_pages);
     } catch (submitError: any) {
-      setError(submitError.response?.data?.errors?.detail ?? "Unable to save company.");
+      const errors = submitError.response?.data?.errors;
+      const firstFieldError =
+        errors && typeof errors === "object"
+          ? Object.values(errors).flat().find(Boolean)
+          : null;
+      setError(
+        submitError.response?.data?.message ||
+          (typeof firstFieldError === "string" ? firstFieldError : null) ||
+          submitError.message ||
+          "Unable to save company.",
+      );
     }
   }
 

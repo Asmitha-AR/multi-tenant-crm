@@ -42,6 +42,21 @@ export function CompanyDetailPage() {
   });
   const [logoFile, setLogoFile] = useState<File | null>(null);
 
+  function resolveApiError(submitError: any, fallbackMessage: string) {
+    const errors = submitError.response?.data?.errors;
+    const firstFieldError =
+      errors && typeof errors === "object"
+        ? Object.values(errors).flat().find(Boolean)
+        : null;
+
+    return (
+      submitError.response?.data?.message ||
+      (typeof firstFieldError === "string" ? firstFieldError : null) ||
+      submitError.message ||
+      fallbackMessage
+    );
+  }
+
   useEffect(() => {
     async function loadData() {
       try {
@@ -80,18 +95,23 @@ export function CompanyDetailPage() {
 
   async function saveCompany(event: FormEvent) {
     event.preventDefault();
-    const payload = new FormData();
-    payload.append("name", companyForm.name);
-    payload.append("industry", companyForm.industry);
-    payload.append("country", companyForm.country);
-    if (logoFile) {
-      payload.append("logo", logoFile);
+    setError("");
+    try {
+      if (logoFile) {
+        const payload = new FormData();
+        payload.append("name", companyForm.name);
+        payload.append("industry", companyForm.industry);
+        payload.append("country", companyForm.country);
+        payload.append("logo", logoFile);
+        await apiClient.patch(`/companies/${id}/`, payload);
+      } else {
+        await apiClient.patch(`/companies/${id}/`, companyForm);
+      }
+      setLogoFile(null);
+      await refreshData();
+    } catch (submitError: any) {
+      setError(resolveApiError(submitError, "Unable to save company."));
     }
-    await apiClient.patch(`/companies/${id}/`, payload, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
-    setLogoFile(null);
-    await refreshData();
   }
 
   async function deleteCompany() {
@@ -104,15 +124,20 @@ export function CompanyDetailPage() {
 
   async function saveContact(event: FormEvent) {
     event.preventDefault();
-    const payload = { ...contactForm, company: Number(id) };
-    if (editingContactId) {
-      await apiClient.patch(`/contacts/${editingContactId}/`, payload);
-    } else {
-      await apiClient.post("/contacts/", payload);
+    setError("");
+    try {
+      const payload = { ...contactForm, company: Number(id) };
+      if (editingContactId) {
+        await apiClient.patch(`/contacts/${editingContactId}/`, payload);
+      } else {
+        await apiClient.post("/contacts/", payload);
+      }
+      setEditingContactId(null);
+      setContactForm({ full_name: "", email: "", phone: "", role: "" });
+      await refreshData();
+    } catch (submitError: any) {
+      setError(resolveApiError(submitError, "Unable to save contact."));
     }
-    setEditingContactId(null);
-    setContactForm({ full_name: "", email: "", phone: "", role: "" });
-    await refreshData();
   }
 
   function startContactEdit(contact: Contact) {
