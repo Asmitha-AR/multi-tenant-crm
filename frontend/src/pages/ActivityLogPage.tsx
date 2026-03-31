@@ -58,6 +58,25 @@ export function ActivityLogPage() {
       </div>
 
       {error ? <p className="error">{error}</p> : null}
+
+      <div className="activity-overview">
+        <article className="activity-overview-card activity-overview-card-accent">
+          <span>Entries on this page</span>
+          <strong>{logs.length}</strong>
+          <p>Recent audit items visible in the current timeline view.</p>
+        </article>
+        <article className="activity-overview-card">
+          <span>Current page</span>
+          <strong>{page}</strong>
+          <p>Browse the audit stream page by page.</p>
+        </article>
+        <article className="activity-overview-card">
+          <span>Coverage</span>
+          <strong>{isProPlan ? "Full" : "Limited"}</strong>
+          <p>{isProPlan ? "Create, update, and delete actions are visible." : "Advanced audit access depends on plan level."}</p>
+        </article>
+      </div>
+
       <div className="activity-grid">
         {logs.map((log) => (
           <article className="activity-card" key={log.id}>
@@ -65,8 +84,17 @@ export function ActivityLogPage() {
               <span className={`activity-badge activity-${log.action.toLowerCase()}`}>{log.action}</span>
               <span className="activity-time">{new Date(log.created_at).toLocaleString()}</span>
             </div>
-            <h3>{log.model_name}</h3>
-            <p className="activity-actor">{log.performed_by}</p>
+
+            <div className="activity-entity-row">
+              <div className={`activity-icon activity-${log.action.toLowerCase()}-icon`}>
+                {log.model_name.slice(0, 1).toUpperCase()}
+              </div>
+              <div>
+                <h3>{log.model_name}</h3>
+                <p className="activity-actor">{log.performed_by}</p>
+              </div>
+            </div>
+
             <div className="activity-meta">
               <div>
                 <span>Object</span>

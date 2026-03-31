@@ -15,16 +15,19 @@ export function AppLayout() {
           <p className="sidebar-org">{user?.organization?.name}</p>
         </div>
 
-        <div className="sidebar-plan">
-          <span className="sidebar-plan-label">Subscription</span>
-          <strong>{user?.organization?.subscription_plan}</strong>
-          <p>{isProPlan ? "Audit visibility and logo uploads are unlocked." : "Core CRM access with essentials only."}</p>
-        </div>
-
-        <div className="sidebar-user">
-          <span>Signed in as</span>
-          <strong>{user?.username}</strong>
-          <p>{user?.role}</p>
+        <div className="sidebar-status">
+          <div className="sidebar-status-row">
+            <span>Plan</span>
+            <strong>{user?.organization?.subscription_plan}</strong>
+          </div>
+          <div className="sidebar-status-row">
+            <span>User</span>
+            <strong>{user?.username}</strong>
+          </div>
+          <div className="sidebar-status-row">
+            <span>Role</span>
+            <strong>{user?.role}</strong>
+          </div>
         </div>
 
         <nav className="sidebar-nav">
@@ -42,7 +45,7 @@ export function AppLayout() {
         </nav>
 
         <button className="sidebar-logout" onClick={logout}>
-          Logout
+          Sign out
         </button>
       </aside>
       <main className="content">

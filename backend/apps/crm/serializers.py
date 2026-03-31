@@ -5,6 +5,7 @@ from apps.crm.models import Company, Contact
 
 
 class CompanySerializer(serializers.ModelSerializer):
+    logo = serializers.ImageField(write_only=True, required=False, allow_null=True)
     logo_url = serializers.SerializerMethodField()
 
     class Meta:
@@ -26,7 +27,11 @@ class CompanySerializer(serializers.ModelSerializer):
         if not obj.logo:
             return None
         request = self.context.get("request")
-        return request.build_absolute_uri(obj.logo.url) if request else obj.logo.url
+        try:
+            logo_url = obj.logo.url
+        except Exception:
+            return None
+        return request.build_absolute_uri(logo_url) if request else logo_url
 
     def validate_logo(self, value):
         request = self.context.get("request")
