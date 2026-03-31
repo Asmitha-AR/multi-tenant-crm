@@ -6,6 +6,7 @@ import { LoginPage } from "../pages/LoginPage";
 import { CompanyListPage } from "../pages/CompanyListPage";
 import { CompanyDetailPage } from "../pages/CompanyDetailPage";
 import { ActivityLogPage } from "../pages/ActivityLogPage";
+import { ContactsPage } from "../pages/ContactsPage";
 import { AppLayout } from "../layouts/AppLayout";
 
 function ProtectedRoute({ children }: { children: JSX.Element }) {
@@ -36,10 +37,10 @@ export function AppRouter() {
       >
         <Route index element={<DashboardPage />} />
         <Route path="companies" element={<CompanyListPage />} />
+        <Route path="contacts" element={<ContactsPage />} />
         <Route path="companies/:id" element={<CompanyDetailPage />} />
         <Route path="activity-logs" element={<ActivityLogPage />} />
       </Route>
     </Routes>
   );
 }
-

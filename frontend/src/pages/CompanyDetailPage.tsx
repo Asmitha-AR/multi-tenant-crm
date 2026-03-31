@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useParams } from "react-router-dom";
 import { apiClient } from "../api/client";
@@ -10,6 +10,7 @@ type Company = {
   industry: string;
   country: string;
   logo_url?: string | null;
+  contact_count: number;
 };
 
 type Contact = {
@@ -21,6 +22,7 @@ type Contact = {
 };
 
 export function CompanyDetailPage() {
+  const maxLogoSizeInBytes = 5 * 1024 * 1024;
   const { id } = useParams();
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
@@ -28,6 +30,8 @@ export function CompanyDetailPage() {
   const [company, setCompany] = useState<Company | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [error, setError] = useState("");
+  const [contactSearch, setContactSearch] = useState("");
+  const [contactRoleFilter, setContactRoleFilter] = useState("");
   const [editingContactId, setEditingContactId] = useState<number | null>(null);
   const [contactForm, setContactForm] = useState({
     full_name: "",
@@ -41,6 +45,20 @@ export function CompanyDetailPage() {
     country: "",
   });
   const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [removeLogo, setRemoveLogo] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const logoPreviewUrl = useMemo(() => (logoFile ? URL.createObjectURL(logoFile) : company?.logo_url ?? null), [
+    company?.logo_url,
+    logoFile,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      if (logoFile) {
+        URL.revokeObjectURL(logoPreviewUrl ?? "");
+      }
+    };
+  }, [logoFile, logoPreviewUrl]);
 
   function resolveApiError(submitError: any, fallbackMessage: string) {
     const errors = submitError.response?.data?.errors;
@@ -57,40 +75,52 @@ export function CompanyDetailPage() {
     );
   }
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const [companyResponse, contactResponse] = await Promise.all([
-          apiClient.get(`/companies/${id}/`),
-          apiClient.get(`/contacts/?company=${id}`),
-        ]);
-        setCompany(companyResponse.data.data);
-        setCompanyForm({
-          name: companyResponse.data.data.name,
-          industry: companyResponse.data.data.industry,
-          country: companyResponse.data.data.country,
-        });
-        setContacts(contactResponse.data.data.results);
-      } catch {
-        setError("Failed to load company details.");
-      }
-    }
-
-    void loadData();
-  }, [id]);
-
   async function refreshData() {
-    const [companyResponse, contactResponse] = await Promise.all([
-      apiClient.get(`/companies/${id}/`),
-      apiClient.get(`/contacts/?company=${id}`),
-    ]);
-    setCompany(companyResponse.data.data);
-    setCompanyForm({
-      name: companyResponse.data.data.name,
-      industry: companyResponse.data.data.industry,
-      country: companyResponse.data.data.country,
-    });
-    setContacts(contactResponse.data.data.results);
+    try {
+      setLoading(true);
+      setError("");
+      const contactParams = new URLSearchParams({ company: String(id) });
+      if (contactSearch) {
+        contactParams.set("search", contactSearch);
+      }
+      if (contactRoleFilter) {
+        contactParams.set("role", contactRoleFilter);
+      }
+      const [companyResponse, contactResponse] = await Promise.all([
+        apiClient.get(`/companies/${id}/`),
+        apiClient.get(`/contacts/?${contactParams.toString()}`),
+      ]);
+      setCompany(companyResponse.data.data);
+      setCompanyForm({
+        name: companyResponse.data.data.name,
+        industry: companyResponse.data.data.industry,
+        country: companyResponse.data.data.country,
+      });
+      setContacts(contactResponse.data.data.results);
+      setRemoveLogo(false);
+    } catch {
+      setError("We couldn't load this company right now. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void refreshData();
+  }, [id, contactSearch, contactRoleFilter]);
+
+  function handleLogoSelection(file: File | null) {
+    if (!file) {
+      setLogoFile(null);
+      return;
+    }
+    if (file.size > maxLogoSizeInBytes) {
+      setError("Logo size must be 5 MB or smaller.");
+      return;
+    }
+    setError("");
+    setRemoveLogo(false);
+    setLogoFile(file);
   }
 
   async function saveCompany(event: FormEvent) {
@@ -104,10 +134,16 @@ export function CompanyDetailPage() {
         payload.append("country", companyForm.country);
         payload.append("logo", logoFile);
         await apiClient.patch(`/companies/${id}/`, payload);
+      } else if (removeLogo) {
+        await apiClient.patch(`/companies/${id}/`, {
+          ...companyForm,
+          remove_logo: true,
+        });
       } else {
         await apiClient.patch(`/companies/${id}/`, companyForm);
       }
       setLogoFile(null);
+      setRemoveLogo(false);
       await refreshData();
     } catch (submitError: any) {
       setError(resolveApiError(submitError, "Unable to save company."));
@@ -163,8 +199,32 @@ export function CompanyDetailPage() {
   const canEditContact = user?.role === "ADMIN" || user?.role === "MANAGER";
   const canDeleteContact = user?.role === "ADMIN";
 
+  function clearContactFilters() {
+    setContactSearch("");
+    setContactRoleFilter("");
+  }
+
   return (
     <section className="company-detail-shell">
+      {loading ? (
+        <div className="feedback-card">
+          <strong>Loading company details</strong>
+          <p>Please wait while we prepare the company workspace.</p>
+        </div>
+      ) : null}
+
+      {error && !company ? (
+        <div className="feedback-card feedback-card-error">
+          <div>
+            <strong>Company unavailable</strong>
+            <p>{error}</p>
+          </div>
+          <button className="secondary-button" type="button" onClick={() => void refreshData()}>
+            Retry
+          </button>
+        </div>
+      ) : null}
+
       <div className="page-hero">
         <div>
           <p className="page-kicker">Company Workspace</p>
@@ -176,7 +236,7 @@ export function CompanyDetailPage() {
 
         <div className="page-hero-card">
           <span className="page-hero-label">Contacts</span>
-          <strong>{contacts.length}</strong>
+          <strong>{company?.contact_count ?? contacts.length}</strong>
           <p>Relationships currently attached to this company profile.</p>
         </div>
       </div>
@@ -207,6 +267,10 @@ export function CompanyDetailPage() {
               <strong>{user?.organization?.subscription_plan}</strong>
             </div>
             <div>
+              <span>Contacts</span>
+              <strong>{company?.contact_count ?? contacts.length}</strong>
+            </div>
+            <div>
               <span>Role</span>
               <strong>{user?.role}</strong>
             </div>
@@ -214,7 +278,7 @@ export function CompanyDetailPage() {
         </div>
       </div>
 
-      {error ? <p className="error">{error}</p> : null}
+      {error && company ? <div className="feedback-card feedback-card-error"><strong>Something needs attention</strong><p>{error}</p></div> : null}
       {canEditCompany ? (
         <form className="company-form-card" onSubmit={saveCompany}>
           <div className="company-form-header">
@@ -250,10 +314,49 @@ export function CompanyDetailPage() {
                 placeholder="Country"
               />
             </label>
-            <div className="form-field">
+            <div className="form-field logo-field">
               <span>Logo</span>
               {isProPlan ? (
-                <input type="file" accept="image/*" onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)} />
+                <div className="logo-uploader">
+                  <div className="logo-preview-card">
+                    {logoPreviewUrl && !removeLogo ? (
+                      <img className="company-logo logo-preview-image" src={logoPreviewUrl} alt="Selected logo preview" />
+                    ) : (
+                      <div className="company-logo company-logo-placeholder logo-preview-image">
+                        {companyForm.name ? companyForm.name.slice(0, 2).toUpperCase() : "LG"}
+                      </div>
+                    )}
+                    <div className="logo-preview-copy">
+                      <strong>{logoFile ? "New logo selected" : company?.logo_url && !removeLogo ? "Current logo" : "No logo uploaded"}</strong>
+                      <p>PNG or JPG up to 5 MB. Upload a new file or remove the current logo.</p>
+                    </div>
+                  </div>
+                  <input type="file" accept="image/*" onChange={(e) => handleLogoSelection(e.target.files?.[0] ?? null)} />
+                  <div className="logo-actions">
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      onClick={() => {
+                        setLogoFile(null);
+                        setRemoveLogo(false);
+                      }}
+                    >
+                      Change Selection
+                    </button>
+                    {company?.logo_url || logoFile ? (
+                      <button
+                        className="ghost-danger-button"
+                        type="button"
+                        onClick={() => {
+                          setLogoFile(null);
+                          setRemoveLogo(true);
+                        }}
+                      >
+                        Remove Logo
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
               ) : (
                 <p className="plan-note">Logo upload is available on the Pro plan.</p>
               )}
@@ -279,6 +382,37 @@ export function CompanyDetailPage() {
           <h3>Contacts</h3>
         </div>
         <p className="page-description">Manage the people connected to this account and keep each relationship up to date.</p>
+      </div>
+
+      <div className="filter-card">
+        <div className="filter-card-header">
+          <div>
+            <p className="page-kicker">Contact Filters</p>
+            <h3>Refine this contact list</h3>
+          </div>
+          <button className="secondary-button" type="button" onClick={clearContactFilters}>
+            Clear Filters
+          </button>
+        </div>
+
+        <div className="filter-grid filter-grid-compact">
+          <label className="form-field">
+            <span>Search</span>
+            <input
+              value={contactSearch}
+              onChange={(e) => setContactSearch(e.target.value)}
+              placeholder="Search name, email, or role"
+            />
+          </label>
+          <label className="form-field">
+            <span>Role</span>
+            <input
+              value={contactRoleFilter}
+              onChange={(e) => setContactRoleFilter(e.target.value)}
+              placeholder="Filter by role"
+            />
+          </label>
+        </div>
       </div>
 
       <form className="company-form-card" onSubmit={saveContact}>
@@ -346,6 +480,13 @@ export function CompanyDetailPage() {
           ) : null}
         </div>
       </form>
+
+      {!loading && contacts.length === 0 ? (
+        <div className="feedback-card feedback-card-empty">
+          <strong>No contacts yet</strong>
+          <p>{contactSearch || contactRoleFilter ? "No contacts matched the current filters. Try another search or role value." : "Add the first contact for this company to start tracking relationships and ownership."}</p>
+        </div>
+      ) : null}
 
       <div className="contact-grid">
         {contacts.map((contact) => (

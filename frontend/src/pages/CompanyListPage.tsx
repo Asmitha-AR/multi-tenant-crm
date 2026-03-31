@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { apiClient } from "../api/client";
 import { useAuthStore } from "../app/auth-store";
@@ -9,37 +9,84 @@ type Company = {
   industry: string;
   country: string;
   logo_url?: string | null;
+  contact_count: number;
 };
 
 export function CompanyListPage() {
+  const maxLogoSizeInBytes = 5 * 1024 * 1024;
   const user = useAuthStore((state) => state.user);
   const isProPlan = user?.organization?.subscription_plan === "PRO";
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [industryFilter, setIndustryFilter] = useState("");
+  const [countryFilter, setCountryFilter] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [page, setPage] = useState(1);
   const [numPages, setNumPages] = useState(1);
   const [form, setForm] = useState({ name: "", industry: "", country: "" });
   const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [removeLogo, setRemoveLogo] = useState(false);
+
+  const editingCompany = useMemo(
+    () => companies.find((company) => company.id === editingId) ?? null,
+    [companies, editingId],
+  );
+  const logoPreviewUrl = useMemo(() => (logoFile ? URL.createObjectURL(logoFile) : editingCompany?.logo_url ?? null), [
+    editingCompany?.logo_url,
+    logoFile,
+  ]);
 
   useEffect(() => {
-    async function loadCompanies() {
-      try {
-        setLoading(true);
-        const response = await apiClient.get(`/companies/?page=${page}&search=${encodeURIComponent(search)}`);
-        setCompanies(response.data.data.results);
-        setNumPages(response.data.data.num_pages);
-      } catch {
-        setError("Failed to load companies.");
-      } finally {
-        setLoading(false);
+    return () => {
+      if (logoFile) {
+        URL.revokeObjectURL(logoPreviewUrl ?? "");
       }
-    }
+    };
+  }, [logoFile, logoPreviewUrl]);
 
+  function handleLogoSelection(file: File | null) {
+    if (!file) {
+      setLogoFile(null);
+      return;
+    }
+    if (file.size > maxLogoSizeInBytes) {
+      setError("Logo size must be 5 MB or smaller.");
+      return;
+    }
+    setError("");
+    setRemoveLogo(false);
+    setLogoFile(file);
+  }
+
+  async function loadCompanies() {
+    try {
+      setLoading(true);
+      setError("");
+      const params = new URLSearchParams({ page: String(page) });
+      if (search) {
+        params.set("search", search);
+      }
+      if (industryFilter) {
+        params.set("industry", industryFilter);
+      }
+      if (countryFilter) {
+        params.set("country", countryFilter);
+      }
+      const response = await apiClient.get(`/companies/?${params.toString()}`);
+      setCompanies(response.data.data.results);
+      setNumPages(response.data.data.num_pages);
+    } catch {
+      setError("We couldn't load companies right now. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
     void loadCompanies();
-  }, [page, search]);
+  }, [page, search, industryFilter, countryFilter]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -53,6 +100,11 @@ export function CompanyListPage() {
           payload.append("country", form.country);
           payload.append("logo", logoFile);
           await apiClient.patch(`/companies/${editingId}/`, payload);
+        } else if (removeLogo) {
+          await apiClient.patch(`/companies/${editingId}/`, {
+            ...form,
+            remove_logo: true,
+          });
         } else {
           await apiClient.patch(`/companies/${editingId}/`, form);
         }
@@ -71,9 +123,8 @@ export function CompanyListPage() {
       setForm({ name: "", industry: "", country: "" });
       setEditingId(null);
       setLogoFile(null);
-      const response = await apiClient.get(`/companies/?page=${page}&search=${encodeURIComponent(search)}`);
-      setCompanies(response.data.data.results);
-      setNumPages(response.data.data.num_pages);
+      setRemoveLogo(false);
+      await loadCompanies();
     } catch (submitError: any) {
       const errors = submitError.response?.data?.errors;
       const firstFieldError =
@@ -97,6 +148,7 @@ export function CompanyListPage() {
       country: company.country,
     });
     setLogoFile(null);
+    setRemoveLogo(false);
   }
 
   async function handleDelete(id: number) {
@@ -104,13 +156,18 @@ export function CompanyListPage() {
       return;
     }
     await apiClient.delete(`/companies/${id}/`);
-    const response = await apiClient.get(`/companies/?page=${page}&search=${encodeURIComponent(search)}`);
-    setCompanies(response.data.data.results);
-    setNumPages(response.data.data.num_pages);
+    await loadCompanies();
   }
 
   const canEdit = user?.role === "ADMIN" || user?.role === "MANAGER";
   const canDelete = user?.role === "ADMIN";
+
+  function clearCompanyFilters() {
+    setPage(1);
+    setSearch("");
+    setIndustryFilter("");
+    setCountryFilter("");
+  }
 
   return (
     <section className="companies-shell">
@@ -134,11 +191,56 @@ export function CompanyListPage() {
       <div className="company-toolbar">
         <label className="search-field">
           <span>Search</span>
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search companies" />
+          <input
+            value={search}
+            onChange={(e) => {
+              setPage(1);
+              setSearch(e.target.value);
+            }}
+            placeholder="Search companies"
+          />
         </label>
         <div className="toolbar-meta">
           <span>{numPages} pages</span>
           <strong>{isProPlan ? "Pro workspace" : "Basic workspace"}</strong>
+        </div>
+      </div>
+
+      <div className="filter-card">
+        <div className="filter-card-header">
+          <div>
+            <p className="page-kicker">Company Filters</p>
+            <h3>Refine the company list</h3>
+          </div>
+          <button className="secondary-button" type="button" onClick={clearCompanyFilters}>
+            Clear Filters
+          </button>
+        </div>
+
+        <div className="filter-grid filter-grid-compact">
+          <label className="form-field">
+            <span>Industry</span>
+            <input
+              value={industryFilter}
+              onChange={(e) => {
+                setPage(1);
+                setIndustryFilter(e.target.value);
+              }}
+              placeholder="Filter by industry"
+            />
+          </label>
+
+          <label className="form-field">
+            <span>Country</span>
+            <input
+              value={countryFilter}
+              onChange={(e) => {
+                setPage(1);
+                setCountryFilter(e.target.value);
+              }}
+              placeholder="Filter by country"
+            />
+          </label>
         </div>
       </div>
 
@@ -179,10 +281,49 @@ export function CompanyListPage() {
               required
             />
           </label>
-          <div className="form-field">
+          <div className="form-field logo-field">
             <span>Logo</span>
             {isProPlan ? (
-              <input type="file" accept="image/*" onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)} />
+              <div className="logo-uploader">
+                <div className="logo-preview-card">
+                  {logoPreviewUrl && !removeLogo ? (
+                    <img className="company-logo logo-preview-image" src={logoPreviewUrl} alt="Selected logo preview" />
+                  ) : (
+                    <div className="company-logo company-logo-placeholder logo-preview-image">
+                      {form.name ? form.name.slice(0, 2).toUpperCase() : "LG"}
+                    </div>
+                  )}
+                  <div className="logo-preview-copy">
+                    <strong>{logoFile ? "New logo selected" : editingCompany?.logo_url && !removeLogo ? "Current logo" : "No logo uploaded"}</strong>
+                    <p>PNG or JPG up to 5 MB. Upload a new file or remove the current logo.</p>
+                  </div>
+                </div>
+                <input type="file" accept="image/*" onChange={(e) => handleLogoSelection(e.target.files?.[0] ?? null)} />
+                <div className="logo-actions">
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={() => {
+                      setLogoFile(null);
+                      setRemoveLogo(false);
+                    }}
+                  >
+                    Change Selection
+                  </button>
+                  {editingCompany?.logo_url || logoFile ? (
+                    <button
+                      className="ghost-danger-button"
+                      type="button"
+                      onClick={() => {
+                        setLogoFile(null);
+                        setRemoveLogo(true);
+                      }}
+                    >
+                      Remove Logo
+                    </button>
+                  ) : null}
+                </div>
+              </div>
             ) : (
               <p className="plan-note">Logo upload is available on the Pro plan.</p>
             )}
@@ -201,6 +342,7 @@ export function CompanyListPage() {
                 setEditingId(null);
                 setForm({ name: "", industry: "", country: "" });
                 setLogoFile(null);
+                setRemoveLogo(false);
               }}
             >
               Cancel
@@ -209,8 +351,25 @@ export function CompanyListPage() {
         </div>
       </form>
 
-      {loading ? <p className="page-feedback">Loading companies...</p> : null}
-      {error ? <p className="error">{error}</p> : null}
+      {loading ? <div className="feedback-card"><strong>Loading companies</strong><p>Please wait while we refresh the company directory.</p></div> : null}
+      {error ? (
+        <div className="feedback-card feedback-card-error">
+          <div>
+            <strong>Companies unavailable</strong>
+            <p>{error}</p>
+          </div>
+          <button className="secondary-button" type="button" onClick={() => void loadCompanies()}>
+            Retry
+          </button>
+        </div>
+      ) : null}
+
+      {!loading && !error && companies.length === 0 ? (
+        <div className="feedback-card feedback-card-empty">
+          <strong>No companies yet</strong>
+          <p>{search || industryFilter || countryFilter ? "No company matched the current filters. Try adjusting the search, industry, or country values." : "Create your first company to start building the CRM workspace."}</p>
+        </div>
+      ) : null}
 
       <div className="company-grid">
         {companies.map((company) => (
@@ -231,6 +390,16 @@ export function CompanyListPage() {
             <div className="company-card-meta">
               <span>Country</span>
               <strong>{company.country}</strong>
+            </div>
+            <div className="company-card-stat-row">
+              <div className="company-card-stat">
+                <span>Contacts</span>
+                <strong>{company.contact_count}</strong>
+              </div>
+              <div className="company-card-stat">
+                <span>Workflow</span>
+                <strong>{company.contact_count > 0 ? "Active" : "Ready"}</strong>
+              </div>
             </div>
             <div className="actions company-card-actions">
               <Link className="button-link primary-link" to={`/companies/${company.id}`}>

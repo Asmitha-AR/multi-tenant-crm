@@ -37,6 +37,9 @@ export function AppLayout() {
           <NavLink className={({ isActive }) => `nav-pill ${isActive ? "active" : ""}`} to="/companies">
             Companies
           </NavLink>
+          <NavLink className={({ isActive }) => `nav-pill ${isActive ? "active" : ""}`} to="/contacts">
+            Contacts
+          </NavLink>
           {isProPlan ? (
             <NavLink className={({ isActive }) => `nav-pill ${isActive ? "active" : ""}`} to="/activity-logs">
               Activity Logs

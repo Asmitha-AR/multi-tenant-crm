@@ -1,4 +1,4 @@
-from django.db.models import Q
+from django.db.models import Count, Q
 from rest_framework import permissions, status, viewsets
 
 from apps.core.api import api_success, paginated_payload
@@ -82,7 +82,11 @@ class CompanyViewSet(TenantScopedModelViewSet):
     serializer_class = CompanySerializer
 
     def base_queryset(self):
-        return Company.objects.select_related("organization").active()
+        return (
+            Company.objects.select_related("organization")
+            .annotate(contact_count=Count("contacts", filter=Q(contacts__is_deleted=False)))
+            .active()
+        )
 
     def apply_search(self, queryset, search):
         return queryset.filter(

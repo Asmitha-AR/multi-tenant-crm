@@ -7,6 +7,8 @@ from apps.crm.models import Company, Contact
 class CompanySerializer(serializers.ModelSerializer):
     logo = serializers.ImageField(write_only=True, required=False, allow_null=True)
     logo_url = serializers.SerializerMethodField()
+    contact_count = serializers.IntegerField(read_only=True)
+    remove_logo = serializers.BooleanField(write_only=True, required=False, default=False)
 
     class Meta:
         model = Company
@@ -17,6 +19,8 @@ class CompanySerializer(serializers.ModelSerializer):
             "country",
             "logo",
             "logo_url",
+            "contact_count",
+            "remove_logo",
             "organization",
             "created_at",
             "updated_at",
@@ -39,7 +43,16 @@ class CompanySerializer(serializers.ModelSerializer):
             return value
         if request.user.organization.subscription_plan != Organization.SubscriptionPlan.PRO:
             raise serializers.ValidationError("Logo upload is available only on the Pro plan.")
+        if value.size > 5 * 1024 * 1024:
+            raise serializers.ValidationError("Logo size must be 5 MB or smaller.")
         return value
+
+    def update(self, instance, validated_data):
+        remove_logo = validated_data.pop("remove_logo", False)
+        if remove_logo:
+            instance.logo.delete(save=False)
+            instance.logo = None
+        return super().update(instance, validated_data)
 
 
 class ContactSerializer(serializers.ModelSerializer):

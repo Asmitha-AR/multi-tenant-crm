@@ -2,6 +2,22 @@ import { useEffect, useState } from "react";
 import { apiClient } from "../api/client";
 import { useAuthStore } from "../app/auth-store";
 
+type CompanySummary = {
+  id: number;
+  industry: string;
+};
+
+type ContactSummary = {
+  id: number;
+  created_at: string;
+};
+
+type ActivitySummary = {
+  id: number;
+  action: string;
+  created_at: string;
+};
+
 export function DashboardPage() {
   const user = useAuthStore((state) => state.user);
   const isProPlan = user?.organization?.subscription_plan === "PRO";
@@ -10,23 +26,62 @@ export function DashboardPage() {
     contacts: 0,
     activities: 0,
   });
+  const [companiesData, setCompaniesData] = useState<CompanySummary[]>([]);
+  const [contactsData, setContactsData] = useState<ContactSummary[]>([]);
+  const [activitiesData, setActivitiesData] = useState<ActivitySummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    async function loadMetrics() {
-      const [companies, contacts, activities] = await Promise.all([
-        apiClient.get("/companies/"),
-        apiClient.get("/contacts/"),
-        apiClient.get("/activity-logs/"),
-      ]);
+  async function loadMetrics() {
+    try {
+      setLoading(true);
+      setError("");
+      const requests = [
+        apiClient.get("/companies/?page_size=100"),
+        apiClient.get("/contacts/?page_size=100"),
+        isProPlan
+          ? apiClient.get("/activity-logs/?page_size=100")
+          : Promise.resolve({ data: { data: { count: 0, results: [] } } }),
+      ];
+      const [companies, contacts, activities] = await Promise.all(requests);
       setMetrics({
         companies: companies.data.data.count,
         contacts: contacts.data.data.count,
         activities: activities.data.data.count,
       });
+      setCompaniesData(companies.data.data.results);
+      setContactsData(contacts.data.data.results);
+      setActivitiesData(activities.data.data.results ?? []);
+    } catch {
+      setError("We couldn't load the latest dashboard summary. Please try again.");
+    } finally {
+      setLoading(false);
     }
+  }
 
+  useEffect(() => {
     void loadMetrics();
-  }, []);
+  }, [isProPlan]);
+
+  const industryCounts = companiesData.reduce<Record<string, number>>((accumulator, company) => {
+    const key = company.industry || "Other";
+    accumulator[key] = (accumulator[key] ?? 0) + 1;
+    return accumulator;
+  }, {});
+  const topIndustries = Object.entries(industryCounts)
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, 4);
+  const maxIndustryCount = topIndustries[0]?.[1] ?? 1;
+
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+
+  const contactsAddedThisWeek = contactsData.filter((contact) => new Date(contact.created_at) >= weekAgo).length;
+
+  const recentActivityCounts = activitiesData.reduce<Record<string, number>>((accumulator, log) => {
+    accumulator[log.action] = (accumulator[log.action] ?? 0) + 1;
+    return accumulator;
+  }, {});
 
   return (
     <section className="dashboard-shell">
@@ -57,21 +112,33 @@ export function DashboardPage() {
         </div>
       </div>
 
+      {error ? (
+        <div className="feedback-card feedback-card-error">
+          <div>
+            <strong>Dashboard unavailable</strong>
+            <p>{error}</p>
+          </div>
+          <button className="secondary-button" type="button" onClick={() => void loadMetrics()}>
+            Retry
+          </button>
+        </div>
+      ) : null}
+
       <div className="dashboard-metrics">
         <article className="metric-card metric-accent">
           <span className="metric-label">Companies</span>
-          <h3>{metrics.companies}</h3>
-          <p>Active company records</p>
+          <h3>{loading ? "--" : metrics.companies}</h3>
+          <p>{loading ? "Loading workspace data..." : "Active company records"}</p>
         </article>
         <article className="metric-card">
           <span className="metric-label">Contacts</span>
-          <h3>{metrics.contacts}</h3>
-          <p>Customer contact records</p>
+          <h3>{loading ? "--" : metrics.contacts}</h3>
+          <p>{loading ? "Loading workspace data..." : "Customer contact records"}</p>
         </article>
         <article className="metric-card">
           <span className="metric-label">Activity Logs</span>
-          <h3>{metrics.activities}</h3>
-          <p>{isProPlan ? "Tracked changes in the workspace" : "Available on Pro plan"}</p>
+          <h3>{loading ? "--" : metrics.activities}</h3>
+          <p>{loading ? "Loading workspace data..." : isProPlan ? "Tracked changes in the workspace" : "Available on Pro plan"}</p>
         </article>
         <article className="metric-card">
           <span className="metric-label">Access</span>
@@ -97,6 +164,67 @@ export function DashboardPage() {
           <p className="dashboard-panel-kicker">Next Step</p>
           <h3>Continue from companies</h3>
           <p>Use the sidebar to manage companies, contacts, and activity records.</p>
+        </article>
+      </div>
+
+      <div className="dashboard-analytics">
+        <article className="dashboard-feature-card">
+          <p className="dashboard-panel-kicker">Industry mix</p>
+          <h3>Companies by industry</h3>
+          <div className="dashboard-chart-list">
+            {loading ? (
+              <p className="page-feedback">Loading industry distribution...</p>
+            ) : topIndustries.length > 0 ? (
+              topIndustries.map(([industry, count]) => (
+                <div className="dashboard-chart-row" key={industry}>
+                  <div className="dashboard-chart-label">
+                    <span>{industry}</span>
+                    <strong>{count}</strong>
+                  </div>
+                  <div className="dashboard-chart-track">
+                    <div
+                      className="dashboard-chart-fill"
+                      style={{ width: `${Math.max((count / maxIndustryCount) * 100, 18)}%` }}
+                    />
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="page-feedback">Add companies to see industry distribution.</p>
+            )}
+          </div>
+        </article>
+
+        <article className="dashboard-feature-card dashboard-feature-card-accent">
+          <p className="dashboard-panel-kicker">Recent activity</p>
+          <h3>Latest audit summary</h3>
+          {isProPlan ? (
+            <div className="dashboard-activity-summary">
+              <div className="dashboard-activity-pill">
+                <span>Create</span>
+                <strong>{recentActivityCounts.CREATE ?? 0}</strong>
+              </div>
+              <div className="dashboard-activity-pill">
+                <span>Update</span>
+                <strong>{recentActivityCounts.UPDATE ?? 0}</strong>
+              </div>
+              <div className="dashboard-activity-pill">
+                <span>Delete</span>
+                <strong>{recentActivityCounts.DELETE ?? 0}</strong>
+              </div>
+            </div>
+          ) : (
+            <p className="page-feedback">Upgrade to Pro to review action-level audit summaries here.</p>
+          )}
+        </article>
+
+        <article className="dashboard-feature-card">
+          <p className="dashboard-panel-kicker">Weekly momentum</p>
+          <h3>Contacts added this week</h3>
+          <div className="dashboard-weekly-stat">
+            <strong>{loading ? "--" : contactsAddedThisWeek}</strong>
+            <span>{contactsAddedThisWeek > 0 ? "New contact records created in the last 7 days." : "No new contacts were added in the last 7 days."}</span>
+          </div>
         </article>
       </div>
 
