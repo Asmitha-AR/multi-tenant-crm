@@ -1,0 +1,59 @@
+import { create } from "zustand";
+import { apiClient } from "../api/client";
+
+type User = {
+  id: number;
+  username: string;
+  email: string;
+  role: string;
+  organization?: {
+    id: number;
+    name: string;
+    subscription_plan: string;
+  };
+};
+
+type AuthState = {
+  user: User | null;
+  loading: boolean;
+  login: (username: string, password: string) => Promise<void>;
+  logout: () => void;
+  loadMe: () => Promise<void>;
+};
+
+export const useAuthStore = create<AuthState>((set) => ({
+  user: null,
+  loading: false,
+  async login(username, password) {
+    set({ loading: true });
+    try {
+      const response = await apiClient.post("/auth/login/", { username, password });
+      localStorage.setItem("access_token", response.data.access);
+      localStorage.setItem("refresh_token", response.data.refresh);
+      set({ user: response.data.user, loading: false });
+    } catch (error) {
+      set({ loading: false });
+      throw error;
+    }
+  },
+  logout() {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+    set({ user: null });
+  },
+  async loadMe() {
+    if (!localStorage.getItem("access_token")) {
+      return;
+    }
+    set({ loading: true });
+    try {
+      const response = await apiClient.get("/auth/me/");
+      set({ user: response.data.data, loading: false });
+    } catch {
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
+      set({ user: null, loading: false });
+    }
+  },
+}));
+
