@@ -54,6 +54,10 @@ class CompanySerializer(serializers.ModelSerializer):
             instance.logo = None
         return super().update(instance, validated_data)
 
+    def create(self, validated_data):
+        validated_data.pop("remove_logo", False)
+        return super().create(validated_data)
+
 
 class ContactSerializer(serializers.ModelSerializer):
     class Meta:

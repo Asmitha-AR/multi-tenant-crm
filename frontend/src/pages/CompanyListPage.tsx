@@ -65,14 +65,17 @@ export function CompanyListPage() {
       setLoading(true);
       setError("");
       const params = new URLSearchParams({ page: String(page) });
-      if (search) {
-        params.set("search", search);
+      const normalizedSearch = search.trim();
+      const normalizedIndustryFilter = industryFilter.trim();
+      const normalizedCountryFilter = countryFilter.trim();
+      if (normalizedSearch) {
+        params.set("search", normalizedSearch);
       }
-      if (industryFilter) {
-        params.set("industry", industryFilter);
+      if (normalizedIndustryFilter) {
+        params.set("industry", normalizedIndustryFilter);
       }
-      if (countryFilter) {
-        params.set("country", countryFilter);
+      if (normalizedCountryFilter) {
+        params.set("country", normalizedCountryFilter);
       }
       const response = await apiClient.get(`/companies/?${params.toString()}`);
       setCompanies(response.data.data.results);

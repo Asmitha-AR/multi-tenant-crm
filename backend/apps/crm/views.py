@@ -96,12 +96,12 @@ class CompanyViewSet(TenantScopedModelViewSet):
         )
 
     def apply_filters(self, queryset):
-        industry = self.request.query_params.get("industry")
-        country = self.request.query_params.get("country")
+        industry = (self.request.query_params.get("industry") or "").strip()
+        country = (self.request.query_params.get("country") or "").strip()
         if industry:
-            queryset = queryset.filter(industry__iexact=industry)
+            queryset = queryset.filter(industry__icontains=industry)
         if country:
-            queryset = queryset.filter(country__iexact=country)
+            queryset = queryset.filter(country__icontains=country)
         return queryset
 
 

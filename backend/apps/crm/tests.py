@@ -326,6 +326,21 @@ class CRMApiTests(APITestCase):
             all(item["id"] != older_log.id for item in date_response.json()["data"]["results"])
         )
 
+    def test_company_filters_support_partial_industry_and_country_values(self):
+        Company.objects.create(
+            organization=self.alpha,
+            name="Retail Orbit",
+            industry="Retail Technology",
+            country="United Arab Emirates",
+        )
+
+        self.authenticate("alpha_admin_test", "alpha12345")
+
+        response = self.client.get("/api/v1/companies/?industry=retail&country=arab")
+        self.assertEqual(response.status_code, 200)
+        results = response.json()["data"]["results"]
+        self.assertTrue(any(item["name"] == "Retail Orbit" for item in results))
+
     def test_basic_plan_cannot_upload_company_logo(self):
         self.authenticate("beta_admin_test", "beta12345")
         image_stream = BytesIO()
