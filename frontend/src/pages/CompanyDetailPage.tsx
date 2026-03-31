@@ -9,6 +9,7 @@ type Company = {
   name: string;
   industry: string;
   country: string;
+  logo_url?: string | null;
 };
 
 type Contact = {
@@ -38,6 +39,7 @@ export function CompanyDetailPage() {
     industry: "",
     country: "",
   });
+  const [logoFile, setLogoFile] = useState<File | null>(null);
 
   useEffect(() => {
     async function loadData() {
@@ -77,7 +79,17 @@ export function CompanyDetailPage() {
 
   async function saveCompany(event: FormEvent) {
     event.preventDefault();
-    await apiClient.patch(`/companies/${id}/`, companyForm);
+    const payload = new FormData();
+    payload.append("name", companyForm.name);
+    payload.append("industry", companyForm.industry);
+    payload.append("country", companyForm.country);
+    if (logoFile) {
+      payload.append("logo", logoFile);
+    }
+    await apiClient.patch(`/companies/${id}/`, payload, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    setLogoFile(null);
     await refreshData();
   }
 
@@ -131,6 +143,7 @@ export function CompanyDetailPage() {
       <p>
         {company?.industry} • {company?.country}
       </p>
+      {company?.logo_url ? <img className="company-logo company-logo-large" src={company.logo_url} alt={`${company.name} logo`} /> : null}
       {error ? <p className="error">{error}</p> : null}
       {canEditCompany ? (
         <form className="card stack" onSubmit={saveCompany}>
@@ -150,6 +163,7 @@ export function CompanyDetailPage() {
             onChange={(e) => setCompanyForm((current) => ({ ...current, country: e.target.value }))}
             placeholder="Country"
           />
+          <input type="file" accept="image/*" onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)} />
           <div className="actions">
             <button type="submit">Save Company</button>
             {canDeleteCompany ? (

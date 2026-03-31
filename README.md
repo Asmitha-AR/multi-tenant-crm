@@ -62,6 +62,18 @@ Use `alpha_admin` for the easiest full CRUD demo.
 - For private assets, enable `AWS_USE_SIGNED_URLS=True`
 - For simpler demos, expose bucket objects with controlled public read policy
 - Keep uploaded logo files small to stay within AWS Free Tier limits
+- Frontend company forms support logo upload and send multipart requests to the API
+
+## Verification
+
+- Backend checks: `.venv/bin/python backend/manage.py check`
+- Backend tests: `.venv/bin/python backend/manage.py test apps.crm`
+- Frontend build: `cd frontend && npm run build`
+
+## Presentation Assets
+
+- Recording outline: [`docs/recording-script.md`](/Users/asmithathiraviyarasa/Desktop/Multi-Tenant%20CRM%20System/docs/recording-script.md)
+- Submission checklist: [`docs/submission-checklist.md`](/Users/asmithathiraviyarasa/Desktop/Multi-Tenant%20CRM%20System/docs/submission-checklist.md)
 
 ## Current State
 

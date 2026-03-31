@@ -8,6 +8,7 @@ type Company = {
   name: string;
   industry: string;
   country: string;
+  logo_url?: string | null;
 };
 
 export function CompanyListPage() {
@@ -20,6 +21,7 @@ export function CompanyListPage() {
   const [page, setPage] = useState(1);
   const [numPages, setNumPages] = useState(1);
   const [form, setForm] = useState({ name: "", industry: "", country: "" });
+  const [logoFile, setLogoFile] = useState<File | null>(null);
 
   useEffect(() => {
     async function loadCompanies() {
@@ -42,13 +44,25 @@ export function CompanyListPage() {
     event.preventDefault();
     setError("");
     try {
+      const payload = new FormData();
+      payload.append("name", form.name);
+      payload.append("industry", form.industry);
+      payload.append("country", form.country);
+      if (logoFile) {
+        payload.append("logo", logoFile);
+      }
       if (editingId) {
-        await apiClient.patch(`/companies/${editingId}/`, form);
+        await apiClient.patch(`/companies/${editingId}/`, payload, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
       } else {
-        await apiClient.post("/companies/", form);
+        await apiClient.post("/companies/", payload, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
       }
       setForm({ name: "", industry: "", country: "" });
       setEditingId(null);
+      setLogoFile(null);
       const response = await apiClient.get(`/companies/?page=${page}&search=${encodeURIComponent(search)}`);
       setCompanies(response.data.data.results);
       setNumPages(response.data.data.num_pages);
@@ -64,6 +78,7 @@ export function CompanyListPage() {
       industry: company.industry,
       country: company.country,
     });
+    setLogoFile(null);
   }
 
   async function handleDelete(id: number) {
@@ -105,6 +120,7 @@ export function CompanyListPage() {
           placeholder="Country"
           required
         />
+        <input type="file" accept="image/*" onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)} />
         <div className="actions">
           <button type="submit">{editingId ? "Update Company" : "Create Company"}</button>
           {editingId ? (
@@ -113,6 +129,7 @@ export function CompanyListPage() {
               onClick={() => {
                 setEditingId(null);
                 setForm({ name: "", industry: "", country: "" });
+                setLogoFile(null);
               }}
             >
               Cancel
@@ -128,6 +145,7 @@ export function CompanyListPage() {
             <Link to={`/companies/${company.id}`}>
               <h3>{company.name}</h3>
             </Link>
+            {company.logo_url ? <img className="company-logo" src={company.logo_url} alt={`${company.name} logo`} /> : null}
             <p>{company.industry}</p>
             <p>{company.country}</p>
             <div className="actions">

@@ -1,0 +1,193 @@
+import shutil
+import tempfile
+from io import BytesIO
+
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
+from PIL import Image
+from rest_framework.test import APITestCase
+
+from apps.accounts.models import Organization, User
+from apps.audits.models import ActivityLog
+from apps.crm.models import Company, Contact
+
+
+TEST_MEDIA_ROOT = tempfile.mkdtemp()
+
+
+@override_settings(MEDIA_ROOT=TEST_MEDIA_ROOT)
+class CRMApiTests(APITestCase):
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(TEST_MEDIA_ROOT, ignore_errors=True)
+        super().tearDownClass()
+
+    def setUp(self):
+        self.alpha = Organization.objects.create(name="Alpha Test", subscription_plan="PRO")
+        self.beta = Organization.objects.create(name="Beta Test", subscription_plan="BASIC")
+
+        self.alpha_admin = User.objects.create_user(
+            username="alpha_admin_test",
+            password="alpha12345",
+            organization=self.alpha,
+            role=User.Role.ADMIN,
+        )
+        self.alpha_manager = User.objects.create_user(
+            username="alpha_manager_test",
+            password="alpha12345",
+            organization=self.alpha,
+            role=User.Role.MANAGER,
+        )
+        self.alpha_staff = User.objects.create_user(
+            username="alpha_staff_test",
+            password="alpha12345",
+            organization=self.alpha,
+            role=User.Role.STAFF,
+        )
+        self.beta_admin = User.objects.create_user(
+            username="beta_admin_test",
+            password="beta12345",
+            organization=self.beta,
+            role=User.Role.ADMIN,
+        )
+
+        self.alpha_company = Company.objects.create(
+            organization=self.alpha,
+            name="Alpha Logistics",
+            industry="Logistics",
+            country="Sri Lanka",
+        )
+        Company.objects.create(
+            organization=self.beta,
+            name="Beta Foods",
+            industry="Food",
+            country="India",
+        )
+        Contact.objects.create(
+            organization=self.alpha,
+            company=self.alpha_company,
+            full_name="Alpha Contact",
+            email="alpha@example.com",
+            phone="94771234567",
+            role="Ops Lead",
+        )
+
+    def authenticate(self, username, password):
+        response = self.client.post(
+            "/api/v1/auth/login/",
+            {"username": username, "password": password},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        token = response.json()["data"]["access"]
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+
+    def test_tenant_isolation_hides_other_organization_records(self):
+        self.authenticate("beta_admin_test", "beta12345")
+
+        response = self.client.get("/api/v1/companies/?search=Alpha")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["data"]["count"], 0)
+
+    def test_staff_can_create_but_cannot_update_or_delete_company(self):
+        self.authenticate("alpha_staff_test", "alpha12345")
+
+        create_response = self.client.post(
+            "/api/v1/companies/",
+            {"name": "Staff Created", "industry": "IT", "country": "Sri Lanka"},
+            format="json",
+        )
+        self.assertEqual(create_response.status_code, 201)
+        company_id = create_response.json()["data"]["id"]
+
+        patch_response = self.client.patch(
+            f"/api/v1/companies/{company_id}/",
+            {"country": "India"},
+            format="json",
+        )
+        self.assertEqual(patch_response.status_code, 403)
+
+        delete_response = self.client.delete(f"/api/v1/companies/{company_id}/")
+        self.assertEqual(delete_response.status_code, 403)
+
+    def test_manager_can_update_but_cannot_delete(self):
+        self.authenticate("alpha_manager_test", "alpha12345")
+
+        patch_response = self.client.patch(
+            f"/api/v1/companies/{self.alpha_company.id}/",
+            {"country": "Singapore"},
+            format="json",
+        )
+        self.assertEqual(patch_response.status_code, 200)
+
+        delete_response = self.client.delete(f"/api/v1/companies/{self.alpha_company.id}/")
+        self.assertEqual(delete_response.status_code, 403)
+
+    def test_activity_log_created_for_create_update_delete(self):
+        self.authenticate("alpha_admin_test", "alpha12345")
+
+        create_response = self.client.post(
+            "/api/v1/companies/",
+            {"name": "Audit Co", "industry": "Tech", "country": "Sri Lanka"},
+            format="json",
+        )
+        company_id = create_response.json()["data"]["id"]
+
+        self.client.patch(
+            f"/api/v1/companies/{company_id}/",
+            {"industry": "Fintech"},
+            format="json",
+        )
+        self.client.delete(f"/api/v1/companies/{company_id}/")
+
+        actions = list(
+            ActivityLog.objects.filter(
+                organization=self.alpha,
+                model_name="Company",
+                object_id=company_id,
+            ).values_list("action", flat=True)
+        )
+        self.assertEqual(actions, ["DELETE", "UPDATE", "CREATE"])
+
+    def test_contact_email_must_be_unique_within_company(self):
+        self.authenticate("alpha_admin_test", "alpha12345")
+
+        response = self.client.post(
+            "/api/v1/contacts/",
+            {
+                "company": self.alpha_company.id,
+                "full_name": "Duplicate Contact",
+                "email": "alpha@example.com",
+                "phone": "94770000000",
+                "role": "Assistant",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_company_logo_upload_works(self):
+        self.authenticate("alpha_admin_test", "alpha12345")
+        image_stream = BytesIO()
+        Image.new("RGB", (2, 2), color="red").save(image_stream, format="PNG")
+        image_stream.seek(0)
+        logo = SimpleUploadedFile(
+            "logo.png",
+            image_stream.read(),
+            content_type="image/png",
+        )
+
+        response = self.client.post(
+            "/api/v1/companies/",
+            {
+                "name": "Logo Co",
+                "industry": "Retail",
+                "country": "Sri Lanka",
+                "logo": logo,
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertIn("logo_url", response.json()["data"])
