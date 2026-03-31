@@ -91,6 +91,13 @@ class CRMApiTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["data"]["count"], 0)
 
+    def test_tenant_isolation_blocks_detail_access_to_other_organization_company(self):
+        self.authenticate("beta_admin_test", "beta12345")
+
+        response = self.client.get(f"/api/v1/companies/{self.alpha_company.id}/")
+
+        self.assertEqual(response.status_code, 404)
+
     def test_tenant_manager_scopes_records_from_current_organization_context(self):
         with tenant_context(self.alpha):
             self.assertEqual(Company.objects.count(), 1)
@@ -136,6 +143,32 @@ class CRMApiTests(APITestCase):
         delete_response = self.client.delete(f"/api/v1/companies/{self.alpha_company.id}/")
         self.assertEqual(delete_response.status_code, 403)
 
+    def test_admin_can_complete_company_crud_flow(self):
+        self.authenticate("alpha_admin_test", "alpha12345")
+
+        create_response = self.client.post(
+            "/api/v1/companies/",
+            {"name": "CRUD Company", "industry": "IT", "country": "Sri Lanka"},
+            format="json",
+        )
+        self.assertEqual(create_response.status_code, 201)
+        company_id = create_response.json()["data"]["id"]
+
+        retrieve_response = self.client.get(f"/api/v1/companies/{company_id}/")
+        self.assertEqual(retrieve_response.status_code, 200)
+        self.assertEqual(retrieve_response.json()["data"]["name"], "CRUD Company")
+
+        update_response = self.client.patch(
+            f"/api/v1/companies/{company_id}/",
+            {"country": "Singapore"},
+            format="json",
+        )
+        self.assertEqual(update_response.status_code, 200)
+        self.assertEqual(update_response.json()["data"]["country"], "Singapore")
+
+        delete_response = self.client.delete(f"/api/v1/companies/{company_id}/")
+        self.assertEqual(delete_response.status_code, 200)
+
     def test_activity_log_created_for_create_update_delete(self):
         self.authenticate("alpha_admin_test", "alpha12345")
 
@@ -162,6 +195,22 @@ class CRMApiTests(APITestCase):
         )
         self.assertEqual(actions, ["DELETE", "UPDATE", "CREATE"])
 
+    def test_soft_deleted_company_is_hidden_from_active_list(self):
+        self.authenticate("alpha_admin_test", "alpha12345")
+
+        response = self.client.delete(f"/api/v1/companies/{self.alpha_company.id}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.alpha_company.refresh_from_db()
+        self.assertTrue(self.alpha_company.is_deleted)
+        self.assertIsNotNone(self.alpha_company.deleted_at)
+        self.assertFalse(
+            Company.all_objects.active().filter(id=self.alpha_company.id).exists()
+        )
+        self.assertTrue(
+            Company.all_objects.filter(id=self.alpha_company.id, is_deleted=True).exists()
+        )
+
     def test_contact_email_must_be_unique_within_company(self):
         self.authenticate("alpha_admin_test", "alpha12345")
 
@@ -179,6 +228,17 @@ class CRMApiTests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
 
+    @override_settings(
+        STORAGES={
+            "default": {
+                "BACKEND": "django.core.files.storage.FileSystemStorage",
+                "OPTIONS": {"location": TEST_MEDIA_ROOT},
+            },
+            "staticfiles": {
+                "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+            },
+        }
+    )
     def test_company_logo_upload_works(self):
         self.authenticate("alpha_admin_test", "alpha12345")
         image_stream = BytesIO()
@@ -211,6 +271,14 @@ class CRMApiTests(APITestCase):
 
         self.assertEqual(response.status_code, 403)
 
+    def test_pro_plan_can_access_activity_logs(self):
+        self.authenticate("alpha_admin_test", "alpha12345")
+
+        response = self.client.get("/api/v1/activity-logs/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("results", response.json()["data"])
+
     def test_basic_plan_cannot_upload_company_logo(self):
         self.authenticate("beta_admin_test", "beta12345")
         image_stream = BytesIO()
@@ -230,6 +298,44 @@ class CRMApiTests(APITestCase):
                 "country": "India",
                 "logo": logo,
             },
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Logo upload is available only on the Pro plan.", str(response.json()))
+
+    @override_settings(
+        STORAGES={
+            "default": {
+                "BACKEND": "django.core.files.storage.FileSystemStorage",
+                "OPTIONS": {"location": TEST_MEDIA_ROOT},
+            },
+            "staticfiles": {
+                "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+            },
+        }
+    )
+    def test_basic_plan_cannot_update_existing_company_with_logo(self):
+        basic_company = Company.objects.create(
+            organization=self.beta,
+            name="Basic Existing",
+            industry="Retail",
+            country="India",
+        )
+        self.authenticate("beta_admin_test", "beta12345")
+
+        image_stream = BytesIO()
+        Image.new("RGB", (2, 2), color="green").save(image_stream, format="PNG")
+        image_stream.seek(0)
+        logo = SimpleUploadedFile(
+            "basic-update-logo.png",
+            image_stream.read(),
+            content_type="image/png",
+        )
+
+        response = self.client.patch(
+            f"/api/v1/companies/{basic_company.id}/",
+            {"logo": logo},
             format="multipart",
         )
 

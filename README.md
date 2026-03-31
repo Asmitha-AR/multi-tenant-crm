@@ -255,6 +255,24 @@ Make sure:
 - `Pro` organizations can access activity logs
 - `Basic` organizations still have core CRM access but are blocked from those premium features
 
+## Testing
+
+The backend currently includes API tests for the main CRM risk areas:
+
+- tenant isolation between organizations
+- role-based permissions for Admin, Manager, and Staff
+- subscription restrictions for Pro-only features
+- company CRUD flow
+- soft delete behavior
+- activity log creation and access
+- contact email uniqueness validation
+
+Run the backend API test suite with:
+
+```bash
+.venv/bin/python backend/manage.py test apps.crm
+```
+
 ## Verification
 
 - Backend checks: `.venv/bin/python backend/manage.py check`
