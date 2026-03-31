@@ -22,31 +22,178 @@ This repository is structured for the Associate Full Stack Developer technical a
 - Versioned API routes under `/api/v1/`
 - React pages for login, dashboard, companies, company detail, and activity logs
 
-## Local Setup
+## Step-By-Step Setup From Clone To Run
 
-1. Copy `.env.example` to `.env`
-2. Install backend dependencies:
-   `pip install -r backend/requirements.txt`
-3. Install frontend dependencies:
-   `cd frontend && npm install`
-4. Run Django migrations and create a superuser
-5. Start backend with `python manage.py runserver` from `backend/`
-6. Start frontend with `npm run dev` from `frontend/`
+Follow these steps if you are starting from scratch.
 
-### Quick Demo Setup
+### 1. Clone the repository
 
-1. Create a virtual environment:
-   `python3 -m venv .venv`
-2. Install backend packages:
-   `.venv/bin/pip install -r backend/requirements.txt`
-3. Run migrations:
-   `.venv/bin/python backend/manage.py migrate`
-4. Seed demo data:
-   `.venv/bin/python backend/manage.py seed_demo_data`
-5. Start the backend:
-   `.venv/bin/python backend/manage.py runserver 127.0.0.1:8000`
-6. Start the frontend:
-   `cd frontend && npm run dev`
+```bash
+git clone https://github.com/Asmitha-AR/multi-tenant-crm.git
+cd multi-tenant-crm
+```
+
+### 2. Create and activate a Python virtual environment
+
+macOS / Linux:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+If you do not want to activate it, you can run Python commands with `.venv/bin/python` and pip commands with `.venv/bin/pip`.
+
+### 3. Install backend dependencies
+
+```bash
+pip install -r backend/requirements.txt
+```
+
+### 4. Install frontend dependencies
+
+```bash
+cd frontend
+npm install
+cd ..
+```
+
+### 5. Create the environment file
+
+Copy the example file:
+
+```bash
+cp .env.example .env
+```
+
+For local development, the default values are enough to get started with SQLite.
+
+Important local setup notes:
+
+- Keep `USE_SQLITE=True` for quick local setup
+- Keep `DJANGO_DEBUG=True` during local development
+- Keep `DJANGO_CORS_ALLOWED_ORIGINS=http://localhost:5173`
+- You can leave all AWS values empty unless you want real S3 uploads
+- You can leave `VITE_API_BASE_URL` empty for local development because the frontend uses the Vite proxy
+
+### 6. Run database migrations
+
+```bash
+.venv/bin/python backend/manage.py migrate
+```
+
+If your virtual environment is activated, you can also run:
+
+```bash
+python backend/manage.py migrate
+```
+
+### 7. Seed demo data
+
+This creates sample organizations, users, companies, and contacts for testing the app.
+
+```bash
+.venv/bin/python backend/manage.py seed_demo_data
+```
+
+### 8. Start the backend server
+
+From the project root:
+
+```bash
+.venv/bin/python backend/manage.py runserver localhost:8000
+```
+
+Keep this terminal running.
+
+### 9. Start the frontend server
+
+Open a second terminal, go to the project root, then run:
+
+```bash
+cd frontend
+npm run dev
+```
+
+Keep this terminal running too.
+
+### 10. Open the application
+
+Frontend:
+
+```text
+http://localhost:5173
+```
+
+Backend API root:
+
+```text
+http://localhost:8000/api/v1/
+```
+
+### 11. Log in with a demo user
+
+Recommended account for full demo access:
+
+- Username: `alpha_admin`
+- Password: `alpha12345`
+
+Other seeded users:
+
+- `alpha_manager` / `alpha12345`
+- `alpha_staff` / `alpha12345`
+- `beta_admin` / `beta12345`
+
+### 12. Verify the project is working
+
+Backend checks:
+
+```bash
+.venv/bin/python backend/manage.py check
+```
+
+Backend tests:
+
+```bash
+.venv/bin/python backend/manage.py test apps.crm
+```
+
+Frontend production build:
+
+```bash
+cd frontend
+npm run build
+```
+
+## Quick Start Summary
+
+If you want the shortest version, run these commands:
+
+```bash
+git clone https://github.com/Asmitha-AR/multi-tenant-crm.git
+cd multi-tenant-crm
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r backend/requirements.txt
+cd frontend && npm install && cd ..
+cp .env.example .env
+python backend/manage.py migrate
+python backend/manage.py seed_demo_data
+python backend/manage.py runserver localhost:8000
+```
+
+Then open another terminal:
+
+```bash
+cd multi-tenant-crm/frontend
+npm run dev
+```
+
+Then open:
+
+```text
+http://localhost:5173
+```
 
 ### Demo Credentials
 
@@ -56,6 +203,42 @@ This repository is structured for the Associate Full Stack Developer technical a
 - `beta_admin` / `beta12345`
 
 Use `alpha_admin` for the easiest full CRUD demo.
+
+## Common Issues
+
+### Companies page returns `500`
+
+Check your AWS environment variables in `.env`.
+
+If you are not actively using S3, leave these empty:
+
+```env
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+AWS_STORAGE_BUCKET_NAME=
+AWS_S3_REGION_NAME=
+AWS_S3_CUSTOM_DOMAIN=
+```
+
+If you are using S3, make sure the region is only the region code, for example:
+
+```env
+AWS_S3_REGION_NAME=ap-southeast-1
+```
+
+Do not use display labels like:
+
+```env
+AWS_S3_REGION_NAME=Asia Pacific (Singapore) ap-southeast-1
+```
+
+### Frontend cannot reach backend
+
+Make sure:
+
+- backend is running on `localhost:8000`
+- frontend is running on `localhost:5173`
+- you restarted both servers after changing `.env`
 
 ## S3 Notes
 
