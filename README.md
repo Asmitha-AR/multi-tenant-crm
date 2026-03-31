@@ -8,136 +8,6 @@ This repository is structured for the Associate Full Stack Developer technical a
 - Frontend: React, Vite, TypeScript, Zustand
 - Storage: AWS S3 ready through `django-storages`
 
-## Features Covered
-
-- Multi-tenant organization data model
-- Middleware and manager-level tenant isolation
-- Custom user with organization and role
-- JWT authentication
-- Role-based access control
-- Subscription-plan enforcement for Pro-only features
-- Company and contact CRUD endpoints
-- Soft delete strategy
-- Activity logging
-- Versioned API routes under `/api/v1/`
-- React pages for login, dashboard, companies, company detail, and activity logs
-
-## Architecture Decisions
-
-### Why a multi-tenant approach
-
-This system is designed for multiple organizations to use the same application while keeping their data isolated.
-Instead of running a separate deployment per organization, the app stores tenant ownership through the `organization`
-relationship on core business records such as companies, contacts, and activity logs.
-
-This approach was chosen because it:
-
-- keeps the product scalable for multiple customers
-- reduces infrastructure duplication
-- allows role and subscription logic to be applied per organization
-- matches the assessment requirement for shared-platform tenant isolation
-
-### Why middleware and manager-level tenant isolation
-
-Tenant isolation is implemented in layers rather than relying only on view logic.
-
-- `CurrentOrganizationMiddleware` resolves the organization from the authenticated user or JWT request context
-- tenant-aware managers and querysets automatically scope data to the current organization
-- viewsets still apply explicit permission and filtering rules as an extra guard
-
-This layered approach was chosen because it reduces the risk of accidental cross-tenant access. Even if a developer
-forgets to manually filter one query in a view, the tenant-aware manager still provides a safer default.
-
-### Why JWT authentication
-
-JWT was chosen because the frontend is a separate React client and the backend is exposed as a REST API.
-Using JWT makes the authentication flow simple for a decoupled frontend/backend architecture.
-
-It also helps because it:
-
-- works well with SPA clients
-- keeps API requests stateless
-- supports role-aware access after login through bearer tokens
-- is easy to test in tools like Postman or browser-based API flows
-
-### Why soft delete
-
-Companies and contacts are soft deleted instead of being immediately removed from the database.
-The system marks them with `is_deleted` and `deleted_at`, and normal queries only return active records.
-
-This was chosen because it:
-
-- preserves auditability
-- avoids losing business records too quickly
-- fits CRM workflows where deleted records may need review or recovery
-- works naturally with activity logging and safer operational controls
-
-## Deployment And Production Readiness Notes
-
-### Environment-based configuration
-
-The project is configured through environment variables instead of hardcoded secrets or machine-specific values.
-This makes it easier to move between local development, staging, and production environments.
-
-Examples include:
-
-- Django secret key
-- debug mode
-- allowed hosts and CORS origins
-- database engine and connection details
-- JWT token lifetimes
-- AWS S3 storage settings
-
-### PostgreSQL-ready setup
-
-The backend supports a quick local SQLite workflow for development, but the settings are already prepared for
-PostgreSQL in a more production-oriented deployment. This was chosen to keep local setup simple while still showing
-that the application can be moved to a more scalable relational database without changing business logic.
-
-### S3-ready storage
-
-Company logo uploads are designed to work with local file storage in development and AWS S3 in a cloud environment.
-The storage backend switches based on environment configuration, which keeps the application portable and avoids
-hardcoded infrastructure dependencies.
-
-This means the same application code can:
-
-- use local `media/` storage during development
-- use S3 bucket storage in production
-- keep credentials outside the codebase
-
-### Security considerations
-
-Several choices were made with safer defaults in mind:
-
-- JWT-based authenticated API access
-- tenant isolation enforced in middleware, managers, and view permissions
-- role-based access control for Admin, Manager, and Staff users
-- subscription-based restrictions for premium features
-- soft delete to avoid immediate destructive data loss
-- environment-based secret handling instead of hardcoded credentials
-
-For a full production deployment, this could be extended further with:
-
-- HTTPS-only deployment
-- stronger secret management through a cloud secret store
-- stricter host and CORS configuration per environment
-- production logging and monitoring
-- rate limiting and additional API hardening
-
-### Scalability notes
-
-The system is structured to scale in a practical way for a CRM product:
-
-- tenant-scoped data model allows many organizations to share one platform safely
-- modular Django app structure keeps accounts, CRM, audits, and core logic separated
-- versioned API routes under `/api/v1/` support future iteration
-- PostgreSQL-ready configuration supports growth beyond local development
-- S3-ready file storage avoids keeping uploaded files only on the application server
-
-Even though this repository is presented as an assessment project, the implementation decisions were made to reflect
-how the same product could evolve toward a more production-ready deployment.
-
 ## Step-By-Step Setup From Clone To Run
 
 Follow these steps if you are starting from scratch.
@@ -283,46 +153,143 @@ cd frontend
 npm run build
 ```
 
-## Quick Start Summary
+## Features Covered
 
-If you want the shortest version, run these commands:
+- Multi-tenant organization data model
+- Middleware and manager-level tenant isolation
+- Custom user with organization and role
+- JWT authentication
+- Role-based access control
+- Subscription-plan enforcement for Pro-only features
+- PostgreSQL-ready and environment-based configuration
+- AWS S3-ready company logo upload flow
+- Logo preview, size validation, and remove/change actions
+- Company and contact CRUD endpoints
+- Dedicated contacts page with quick-add contact modal
+- Company contact count visibility in list and detail views
+- Company search, industry filter, and country filter
+- Contact search, company filter, and role filter
+- Soft delete strategy
+- Activity logging
+- Activity log filters by action, model, user, and date range
+- Dashboard analytics for industry mix, recent activity, and weekly contact additions
+- Better loading, empty, and retry states in the frontend
+- Versioned API routes under `/api/v1/`
+- React pages for login, dashboard, companies, company detail, contacts, and activity logs
 
-```bash
-git clone https://github.com/Asmitha-AR/multi-tenant-crm.git
-cd multi-tenant-crm
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r backend/requirements.txt
-cd frontend && npm install && cd ..
-cp .env.example .env
-python backend/manage.py migrate
-python backend/manage.py seed_demo_data
-python backend/manage.py runserver localhost:8000
-```
+## Architecture Decisions
 
-Then open another terminal:
+### Why a multi-tenant approach
 
-```bash
-cd multi-tenant-crm/frontend
-npm run dev
-```
+This system is designed for multiple organizations to use the same application while keeping their data isolated.
+Instead of running a separate deployment per organization, the app stores tenant ownership through the `organization`
+relationship on core business records such as companies, contacts, and activity logs.
 
-Then open:
+Why this approach:
 
-```text
-http://localhost:5173
-```
+- keeps the product scalable for multiple customers
+- reduces infrastructure duplication
+- allows role and subscription logic to be applied per organization
+- matches the assessment requirement for shared-platform tenant isolation
 
-### Demo Credentials
+### Why middleware and manager-level tenant isolation
 
-- `alpha_admin` / `alpha12345`
-- `alpha_manager` / `alpha12345`
-- `alpha_staff` / `alpha12345`
-- `beta_admin` / `beta12345`
-- `beta_manager` / `beta12345`
-- `beta_staff` / `beta12345`
+Tenant isolation is implemented in layers rather than relying only on view logic.
 
-Use `alpha_admin` for the easiest full CRUD demo.
+- `CurrentOrganizationMiddleware` resolves the organization from the authenticated user or JWT request context
+- tenant-aware managers and querysets automatically scope data to the current organization
+- viewsets still apply explicit permission and filtering rules as an extra guard
+
+This layered approach reduces the risk of accidental cross-tenant access by keeping tenant scoping as a safer default.
+
+### Why JWT authentication
+
+JWT was chosen because the frontend is a separate React client and the backend is exposed as a REST API.
+Using JWT makes the authentication flow simple for a decoupled frontend/backend architecture.
+
+Why JWT:
+
+- works well with SPA clients
+- keeps API requests stateless
+- supports role-aware access after login through bearer tokens
+- is easy to test in tools like Postman or browser-based API flows
+
+### Why soft delete
+
+Companies and contacts are soft deleted instead of being immediately removed from the database.
+The system marks them with `is_deleted` and `deleted_at`, and normal queries only return active records.
+
+Why soft delete:
+
+- preserves auditability
+- avoids losing business records too quickly
+- fits CRM workflows where deleted records may need review or recovery
+- works naturally with activity logging and safer operational controls
+
+## Deployment And Production Readiness Notes
+
+### Environment-based configuration
+
+The project is configured through environment variables instead of hardcoded secrets or machine-specific values.
+This makes it easier to move between local development, staging, and production environments.
+
+Configured through environment variables:
+
+- Django secret key
+- debug mode
+- allowed hosts and CORS origins
+- database engine and connection details
+- JWT token lifetimes
+- AWS S3 storage settings
+
+### PostgreSQL-ready setup
+
+The backend supports a quick local SQLite workflow for development, but the settings are already prepared for
+PostgreSQL in a more production-oriented deployment. This was chosen to keep local setup simple while still showing
+that the application can be moved to a more scalable relational database without changing business logic.
+
+### S3-ready storage
+
+Company logo uploads are designed to work with local file storage in development and AWS S3 in a cloud environment.
+The storage backend switches based on environment configuration, which keeps the application portable and avoids
+hardcoded infrastructure dependencies.
+
+Same codebase can use:
+
+- use local `media/` storage during development
+- use S3 bucket storage in production
+- keep credentials outside the codebase
+
+### Security considerations
+
+Several choices were made with safer defaults in mind:
+
+- JWT-based authenticated API access
+- tenant isolation enforced in middleware, managers, and view permissions
+- role-based access control for Admin, Manager, and Staff users
+- subscription-based restrictions for premium features
+- soft delete to avoid immediate destructive data loss
+- environment-based secret handling instead of hardcoded credentials
+
+Production extensions that could be added:
+
+- HTTPS-only deployment
+- stronger secret management through a cloud secret store
+- stricter host and CORS configuration per environment
+- production logging and monitoring
+- rate limiting and additional API hardening
+
+### Scalability notes
+
+The system is structured to scale in a practical way for a CRM product:
+
+- tenant-scoped data model allows many organizations to share one platform safely
+- modular Django app structure keeps accounts, CRM, audits, and core logic separated
+- versioned API routes under `/api/v1/` support future iteration
+- PostgreSQL-ready configuration supports growth beyond local development
+- S3-ready file storage avoids keeping uploaded files only on the application server
+
+These decisions keep the assessment project closer to a realistic production-oriented CRM design.
 
 ### Seeded Demo Data Overview
 
@@ -330,7 +297,7 @@ Use `alpha_admin` for the easiest full CRUD demo.
 - `Beta Ventures` uses the `Basic` plan
 - total seeded companies: `9`
 - total seeded contacts: `18`
-- each company includes sample contacts for a stronger demo flow
+- total seeded demo users: `6`
 
 ## Common Issues
 
@@ -406,11 +373,6 @@ Run the backend API test suite with:
 - Backend checks: `.venv/bin/python backend/manage.py check`
 - Backend tests: `.venv/bin/python backend/manage.py test apps.crm`
 - Frontend build: `cd frontend && npm run build`
-
-## Presentation Assets
-
-- Recording outline: [`docs/recording-script.md`](/Users/asmithathiraviyarasa/Desktop/Multi-Tenant%20CRM%20System/docs/recording-script.md)
-- Submission checklist: [`docs/submission-checklist.md`](/Users/asmithathiraviyarasa/Desktop/Multi-Tenant%20CRM%20System/docs/submission-checklist.md)
 
 ## Current State
 
