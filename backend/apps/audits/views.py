@@ -16,5 +16,4 @@ class ActivityLogListView(APIView):
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(queryset, request)
         serializer = ActivityLogSerializer(page, many=True)
-        return api_success(paginated_payload(page, serializer), message="Activity logs fetched")
-
+        return api_success(paginated_payload(paginator.page, serializer), message="Activity logs fetched")

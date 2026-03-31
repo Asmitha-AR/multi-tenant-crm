@@ -19,9 +19,13 @@ class TenantScopedModelViewSet(viewsets.ModelViewSet):
         search = self.request.query_params.get("search")
         if search:
             queryset = self.apply_search(queryset, search)
+        queryset = self.apply_filters(queryset)
         return queryset
 
     def apply_search(self, queryset, search):
+        return queryset
+
+    def apply_filters(self, queryset):
         return queryset
 
     def perform_create(self, serializer):
@@ -39,8 +43,11 @@ class TenantScopedModelViewSet(viewsets.ModelViewSet):
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
-        serializer = self.get_serializer(page, many=True)
-        return api_success(paginated_payload(page, serializer), message="List fetched")
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return api_success(paginated_payload(self.paginator.page, serializer), message="List fetched")
+        serializer = self.get_serializer(queryset, many=True)
+        return api_success(serializer.data, message="List fetched")
 
     def retrieve(self, request, *args, **kwargs):
         serializer = self.get_serializer(self.get_object())
@@ -77,6 +84,15 @@ class CompanyViewSet(TenantScopedModelViewSet):
             | Q(country__icontains=search)
         )
 
+    def apply_filters(self, queryset):
+        industry = self.request.query_params.get("industry")
+        country = self.request.query_params.get("country")
+        if industry:
+            queryset = queryset.filter(industry__iexact=industry)
+        if country:
+            queryset = queryset.filter(country__iexact=country)
+        return queryset
+
 
 class ContactViewSet(TenantScopedModelViewSet):
     queryset = Contact.objects.select_related("organization", "company")
@@ -96,3 +112,8 @@ class ContactViewSet(TenantScopedModelViewSet):
             | Q(role__icontains=search)
         )
 
+    def apply_filters(self, queryset):
+        role_name = self.request.query_params.get("role")
+        if role_name:
+            queryset = queryset.filter(role__iexact=role_name)
+        return queryset

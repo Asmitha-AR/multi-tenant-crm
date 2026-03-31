@@ -22,6 +22,10 @@ input {
   font: inherit;
 }
 
+button {
+  cursor: pointer;
+}
+
 .shell {
   display: grid;
   grid-template-columns: 260px 1fr;
@@ -71,6 +75,21 @@ input {
   gap: 16px;
 }
 
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.toolbar {
+  margin-bottom: 16px;
+}
+
+.button-link {
+  display: inline-block;
+}
+
 .error {
   color: #b42318;
 }
@@ -80,4 +99,3 @@ input {
     grid-template-columns: 1fr;
   }
 }
-

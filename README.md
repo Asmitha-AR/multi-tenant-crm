@@ -31,6 +31,30 @@ This repository is structured for the Associate Full Stack Developer technical a
 5. Start backend with `python manage.py runserver` from `backend/`
 6. Start frontend with `npm run dev` from `frontend/`
 
+### Quick Demo Setup
+
+1. Create a virtual environment:
+   `python3 -m venv .venv`
+2. Install backend packages:
+   `.venv/bin/pip install -r backend/requirements.txt`
+3. Run migrations:
+   `.venv/bin/python backend/manage.py migrate`
+4. Seed demo data:
+   `.venv/bin/python backend/manage.py seed_demo_data`
+5. Start the backend:
+   `.venv/bin/python backend/manage.py runserver 127.0.0.1:8000`
+6. Start the frontend:
+   `cd frontend && npm run dev`
+
+### Demo Credentials
+
+- `alpha_admin` / `alpha12345`
+- `alpha_manager` / `alpha12345`
+- `alpha_staff` / `alpha12345`
+- `beta_admin` / `beta12345`
+
+Use `alpha_admin` for the easiest full CRUD demo.
+
 ## S3 Notes
 
 - Credentials are read from environment variables only
@@ -39,9 +63,16 @@ This repository is structured for the Associate Full Stack Developer technical a
 - For simpler demos, expose bucket objects with controlled public read policy
 - Keep uploaded logo files small to stay within AWS Free Tier limits
 
-## Remaining Work
+## Current State
 
-- Generate migrations
-- Seed sample organizations, users, companies, and contacts
-- Add create/edit/delete forms in the frontend
-- Add tests and a demo script for the screen recording
+- Initial migrations are included
+- Demo seed command is included
+- Frontend supports login, dashboard, companies, contacts, and activity logs
+- Company and contact pages support create, edit, and delete flows with role-based restrictions
+- Tenant isolation was verified with seeded users across two organizations
+
+## Recommended Next Improvements
+
+- Add automated API tests for permission and isolation coverage
+- Add company logo upload UI for the S3 path
+- Record the final walkthrough and architecture explanation

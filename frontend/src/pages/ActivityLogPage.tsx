@@ -12,19 +12,28 @@ type ActivityLog = {
 
 export function ActivityLogPage() {
   const [logs, setLogs] = useState<ActivityLog[]>([]);
+  const [page, setPage] = useState(1);
+  const [numPages, setNumPages] = useState(1);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     async function loadLogs() {
-      const response = await apiClient.get("/activity-logs/");
-      setLogs(response.data.data.results);
+      try {
+        const response = await apiClient.get(`/activity-logs/?page=${page}`);
+        setLogs(response.data.data.results);
+        setNumPages(response.data.data.num_pages);
+      } catch {
+        setError("Failed to load activity logs.");
+      }
     }
 
     void loadLogs();
-  }, []);
+  }, [page]);
 
   return (
     <section>
       <h2>Activity Logs</h2>
+      {error ? <p className="error">{error}</p> : null}
       <div className="stack">
         {logs.map((log) => (
           <article className="card" key={log.id}>
@@ -35,7 +44,17 @@ export function ActivityLogPage() {
           </article>
         ))}
       </div>
+      <div className="actions">
+        <button type="button" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>
+          Previous
+        </button>
+        <span>
+          Page {page} of {numPages}
+        </span>
+        <button type="button" disabled={page >= numPages} onClick={() => setPage((current) => current + 1)}>
+          Next
+        </button>
+      </div>
     </section>
   );
 }
-

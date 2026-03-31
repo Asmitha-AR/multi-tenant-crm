@@ -1,4 +1,3 @@
-from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
@@ -62,5 +61,4 @@ class ActivityAction(models.TextChoices):
 
 
 def logo_upload_path(instance, filename):
-    return f"organizations/{instance.organization_id}/companies/{filename}"
-
+    return f"organizations/{instance.organization_id}/companies/{instance.pk or 'new'}/{filename}"

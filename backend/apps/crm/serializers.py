@@ -51,3 +51,11 @@ class ContactSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Company must belong to your organization.")
         return attrs
 
+    def validate_email(self, value):
+        company = self.initial_data.get("company") or getattr(self.instance, "company_id", None)
+        queryset = Contact.objects.filter(company_id=company, email__iexact=value, is_deleted=False)
+        if self.instance:
+            queryset = queryset.exclude(pk=self.instance.pk)
+        if queryset.exists():
+            raise serializers.ValidationError("Email must be unique within the same company.")
+        return value
