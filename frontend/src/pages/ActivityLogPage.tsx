@@ -13,6 +13,7 @@ type ActivityLog = {
 
 export function ActivityLogPage() {
   const user = useAuthStore((state) => state.user);
+  const isProPlan = user?.organization?.subscription_plan === "PRO";
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [page, setPage] = useState(1);
   const [numPages, setNumPages] = useState(1);
@@ -38,27 +39,61 @@ export function ActivityLogPage() {
   }, [page, user?.organization?.subscription_plan]);
 
   return (
-    <section>
-      <h2>Activity Logs</h2>
+    <section className="activity-shell">
+      <div className="page-hero">
+        <div>
+          <p className="page-kicker">Audit Console</p>
+          <h2>Activity Logs</h2>
+          <p className="page-description">
+            Review how users are creating, updating, and deleting records across your CRM workspace with a clean
+            activity timeline.
+          </p>
+        </div>
+
+        <div className="page-hero-card">
+          <span className="page-hero-label">Audit access</span>
+          <strong>{isProPlan ? "Enabled" : "Locked"}</strong>
+          <p>{isProPlan ? "This workspace can review premium audit history." : "Upgrade to Pro to unlock activity history."}</p>
+        </div>
+      </div>
+
       {error ? <p className="error">{error}</p> : null}
-      <div className="stack">
+      <div className="activity-grid">
         {logs.map((log) => (
-          <article className="card" key={log.id}>
-            <h3>{log.action}</h3>
-            <p>{log.performed_by}</p>
-            <p>{log.model_name} #{log.object_id}</p>
-            <p>{new Date(log.created_at).toLocaleString()}</p>
+          <article className="activity-card" key={log.id}>
+            <div className="activity-card-top">
+              <span className={`activity-badge activity-${log.action.toLowerCase()}`}>{log.action}</span>
+              <span className="activity-time">{new Date(log.created_at).toLocaleString()}</span>
+            </div>
+            <h3>{log.model_name}</h3>
+            <p className="activity-actor">{log.performed_by}</p>
+            <div className="activity-meta">
+              <div>
+                <span>Object</span>
+                <strong>#{log.object_id}</strong>
+              </div>
+              <div>
+                <span>Action</span>
+                <strong>{log.action}</strong>
+              </div>
+            </div>
           </article>
         ))}
       </div>
-      <div className="actions">
-        <button type="button" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>
+
+      <div className="pagination-bar">
+        <button className="secondary-button" type="button" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>
           Previous
         </button>
-        <span>
+        <span className="pagination-label">
           Page {page} of {numPages}
         </span>
-        <button type="button" disabled={page >= numPages} onClick={() => setPage((current) => current + 1)}>
+        <button
+          className="secondary-button"
+          type="button"
+          disabled={page >= numPages}
+          onClick={() => setPage((current) => current + 1)}
+        >
           Next
         </button>
       </div>

@@ -139,76 +139,177 @@ export function CompanyDetailPage() {
   const canDeleteContact = user?.role === "ADMIN";
 
   return (
-    <section>
-      <h2>{company?.name}</h2>
-      <p>
-        {company?.industry} • {company?.country}
-      </p>
-      {company?.logo_url ? <img className="company-logo company-logo-large" src={company.logo_url} alt={`${company.name} logo`} /> : null}
+    <section className="company-detail-shell">
+      <div className="page-hero">
+        <div>
+          <p className="page-kicker">Company Workspace</p>
+          <h2>{company?.name}</h2>
+          <p className="page-description">
+            {company?.industry} • {company?.country}
+          </p>
+        </div>
+
+        <div className="page-hero-card">
+          <span className="page-hero-label">Contacts</span>
+          <strong>{contacts.length}</strong>
+          <p>Relationships currently attached to this company profile.</p>
+        </div>
+      </div>
+
+      <div className="company-detail-summary">
+        {company?.logo_url ? (
+          <img className="company-logo company-logo-large" src={company.logo_url} alt={`${company.name} logo`} />
+        ) : (
+          <div className="company-logo company-logo-large company-logo-placeholder">
+            {company?.name?.slice(0, 2).toUpperCase()}
+          </div>
+        )}
+
+        <div className="company-summary-card">
+          <p className="page-kicker">Profile Summary</p>
+          <h3>{company?.name}</h3>
+          <div className="company-summary-grid">
+            <div>
+              <span>Industry</span>
+              <strong>{company?.industry}</strong>
+            </div>
+            <div>
+              <span>Country</span>
+              <strong>{company?.country}</strong>
+            </div>
+            <div>
+              <span>Plan</span>
+              <strong>{user?.organization?.subscription_plan}</strong>
+            </div>
+            <div>
+              <span>Role</span>
+              <strong>{user?.role}</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {error ? <p className="error">{error}</p> : null}
       {canEditCompany ? (
-        <form className="card stack" onSubmit={saveCompany}>
-          <h3>Edit Company</h3>
-          <input
-            value={companyForm.name}
-            onChange={(e) => setCompanyForm((current) => ({ ...current, name: e.target.value }))}
-            placeholder="Company name"
-          />
-          <input
-            value={companyForm.industry}
-            onChange={(e) => setCompanyForm((current) => ({ ...current, industry: e.target.value }))}
-            placeholder="Industry"
-          />
-          <input
-            value={companyForm.country}
-            onChange={(e) => setCompanyForm((current) => ({ ...current, country: e.target.value }))}
-            placeholder="Country"
-          />
-          {isProPlan ? (
-            <input type="file" accept="image/*" onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)} />
-          ) : (
-            <p className="plan-note">Logo upload is available on the Pro plan.</p>
-          )}
+        <form className="company-form-card" onSubmit={saveCompany}>
+          <div className="company-form-header">
+            <div>
+              <p className="page-kicker">Company Editor</p>
+              <h3>Edit Company</h3>
+            </div>
+            <p>Adjust company identity, update market information, or refresh the logo asset for this account.</p>
+          </div>
+
+          <div className="company-form-grid">
+            <label className="form-field">
+              <span>Company name</span>
+              <input
+                value={companyForm.name}
+                onChange={(e) => setCompanyForm((current) => ({ ...current, name: e.target.value }))}
+                placeholder="Company name"
+              />
+            </label>
+            <label className="form-field">
+              <span>Industry</span>
+              <input
+                value={companyForm.industry}
+                onChange={(e) => setCompanyForm((current) => ({ ...current, industry: e.target.value }))}
+                placeholder="Industry"
+              />
+            </label>
+            <label className="form-field">
+              <span>Country</span>
+              <input
+                value={companyForm.country}
+                onChange={(e) => setCompanyForm((current) => ({ ...current, country: e.target.value }))}
+                placeholder="Country"
+              />
+            </label>
+            <div className="form-field">
+              <span>Logo</span>
+              {isProPlan ? (
+                <input type="file" accept="image/*" onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)} />
+              ) : (
+                <p className="plan-note">Logo upload is available on the Pro plan.</p>
+              )}
+            </div>
+          </div>
+
           <div className="actions">
-            <button type="submit">Save Company</button>
+            <button className="primary-button" type="submit">
+              Save Company
+            </button>
             {canDeleteCompany ? (
-              <button type="button" onClick={() => void deleteCompany()}>
+              <button className="ghost-danger-button" type="button" onClick={() => void deleteCompany()}>
                 Delete Company
               </button>
             ) : null}
           </div>
         </form>
       ) : null}
-      <h3>Contacts</h3>
-      <form className="card stack" onSubmit={saveContact}>
-        <h4>{editingContactId ? "Edit Contact" : "Add Contact"}</h4>
-        <input
-          value={contactForm.full_name}
-          onChange={(e) => setContactForm((current) => ({ ...current, full_name: e.target.value }))}
-          placeholder="Full name"
-          required
-        />
-        <input
-          value={contactForm.email}
-          onChange={(e) => setContactForm((current) => ({ ...current, email: e.target.value }))}
-          placeholder="Email"
-          required
-        />
-        <input
-          value={contactForm.phone}
-          onChange={(e) => setContactForm((current) => ({ ...current, phone: e.target.value }))}
-          placeholder="Phone"
-        />
-        <input
-          value={contactForm.role}
-          onChange={(e) => setContactForm((current) => ({ ...current, role: e.target.value }))}
-          placeholder="Role"
-          required
-        />
+
+      <div className="company-detail-section-header">
+        <div>
+          <p className="page-kicker">Contact Management</p>
+          <h3>Contacts</h3>
+        </div>
+        <p className="page-description">Manage the people connected to this account and keep each relationship up to date.</p>
+      </div>
+
+      <form className="company-form-card" onSubmit={saveContact}>
+        <div className="company-form-header">
+          <div>
+            <p className="page-kicker">Contact Editor</p>
+            <h3>{editingContactId ? "Edit Contact" : "Add Contact"}</h3>
+          </div>
+          <p>{editingContactId ? "Update the selected contact's details." : "Create a new contact inside this company workspace."}</p>
+        </div>
+
+        <div className="company-form-grid">
+          <label className="form-field">
+            <span>Full name</span>
+            <input
+              value={contactForm.full_name}
+              onChange={(e) => setContactForm((current) => ({ ...current, full_name: e.target.value }))}
+              placeholder="Full name"
+              required
+            />
+          </label>
+          <label className="form-field">
+            <span>Email</span>
+            <input
+              value={contactForm.email}
+              onChange={(e) => setContactForm((current) => ({ ...current, email: e.target.value }))}
+              placeholder="Email"
+              required
+            />
+          </label>
+          <label className="form-field">
+            <span>Phone</span>
+            <input
+              value={contactForm.phone}
+              onChange={(e) => setContactForm((current) => ({ ...current, phone: e.target.value }))}
+              placeholder="Phone"
+            />
+          </label>
+          <label className="form-field">
+            <span>Role</span>
+            <input
+              value={contactForm.role}
+              onChange={(e) => setContactForm((current) => ({ ...current, role: e.target.value }))}
+              placeholder="Role"
+              required
+            />
+          </label>
+        </div>
+
         <div className="actions">
-          <button type="submit">{editingContactId ? "Update Contact" : "Create Contact"}</button>
+          <button className="primary-button" type="submit">
+            {editingContactId ? "Update Contact" : "Create Contact"}
+          </button>
           {editingContactId ? (
             <button
+              className="secondary-button"
               type="button"
               onClick={() => {
                 setEditingContactId(null);
@@ -220,21 +321,35 @@ export function CompanyDetailPage() {
           ) : null}
         </div>
       </form>
-      <div className="stack">
+
+      <div className="contact-grid">
         {contacts.map((contact) => (
-          <article className="card" key={contact.id}>
-            <h4>{contact.full_name}</h4>
-            <p>{contact.email}</p>
-            <p>{contact.phone}</p>
-            <p>{contact.role}</p>
-            <div className="actions">
+          <article className="contact-card" key={contact.id}>
+            <div className="contact-card-top">
+              <div>
+                <p className="company-card-kicker">{contact.role}</p>
+                <h4>{contact.full_name}</h4>
+              </div>
+              <div className="contact-avatar">{contact.full_name.slice(0, 2).toUpperCase()}</div>
+            </div>
+            <div className="contact-meta">
+              <div>
+                <span>Email</span>
+                <strong>{contact.email}</strong>
+              </div>
+              <div>
+                <span>Phone</span>
+                <strong>{contact.phone || "Not provided"}</strong>
+              </div>
+            </div>
+            <div className="actions company-card-actions">
               {canEditContact ? (
-                <button type="button" onClick={() => startContactEdit(contact)}>
+                <button className="secondary-button" type="button" onClick={() => startContactEdit(contact)}>
                   Edit
                 </button>
               ) : null}
               {canDeleteContact ? (
-                <button type="button" onClick={() => void deleteContact(contact.id)}>
+                <button className="ghost-danger-button" type="button" onClick={() => void deleteContact(contact.id)}>
                   Delete
                 </button>
               ) : null}
