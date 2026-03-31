@@ -9,6 +9,7 @@ from rest_framework.test import APITestCase
 
 from apps.accounts.models import Organization, User
 from apps.audits.models import ActivityLog
+from apps.core.tenant import tenant_context
 from apps.crm.models import Company, Contact
 
 
@@ -89,6 +90,17 @@ class CRMApiTests(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["data"]["count"], 0)
+
+    def test_tenant_manager_scopes_records_from_current_organization_context(self):
+        with tenant_context(self.alpha):
+            self.assertEqual(Company.objects.count(), 1)
+            self.assertEqual(Company.objects.first().organization_id, self.alpha.id)
+
+        with tenant_context(self.beta):
+            self.assertEqual(Company.objects.count(), 1)
+            self.assertEqual(Company.objects.first().organization_id, self.beta.id)
+
+        self.assertEqual(Company.all_objects.count(), 2)
 
     def test_staff_can_create_but_cannot_update_or_delete_company(self):
         self.authenticate("alpha_staff_test", "alpha12345")
@@ -191,3 +203,35 @@ class CRMApiTests(APITestCase):
 
         self.assertEqual(response.status_code, 201)
         self.assertIn("logo_url", response.json()["data"])
+
+    def test_basic_plan_cannot_access_activity_logs(self):
+        self.authenticate("beta_admin_test", "beta12345")
+
+        response = self.client.get("/api/v1/activity-logs/")
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_basic_plan_cannot_upload_company_logo(self):
+        self.authenticate("beta_admin_test", "beta12345")
+        image_stream = BytesIO()
+        Image.new("RGB", (2, 2), color="blue").save(image_stream, format="PNG")
+        image_stream.seek(0)
+        logo = SimpleUploadedFile(
+            "basic-logo.png",
+            image_stream.read(),
+            content_type="image/png",
+        )
+
+        response = self.client.post(
+            "/api/v1/companies/",
+            {
+                "name": "Basic Logo Co",
+                "industry": "Retail",
+                "country": "India",
+                "logo": logo,
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Logo upload is available only on the Pro plan.", str(response.json()))

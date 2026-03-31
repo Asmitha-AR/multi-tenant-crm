@@ -13,6 +13,7 @@ type Company = {
 
 export function CompanyListPage() {
   const user = useAuthStore((state) => state.user);
+  const isProPlan = user?.organization?.subscription_plan === "PRO";
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -120,7 +121,11 @@ export function CompanyListPage() {
           placeholder="Country"
           required
         />
-        <input type="file" accept="image/*" onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)} />
+        {isProPlan ? (
+          <input type="file" accept="image/*" onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)} />
+        ) : (
+          <p className="plan-note">Logo upload is available on the Pro plan.</p>
+        )}
         <div className="actions">
           <button type="submit">{editingId ? "Update Company" : "Create Company"}</button>
           {editingId ? (

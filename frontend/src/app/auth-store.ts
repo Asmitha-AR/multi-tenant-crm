@@ -28,9 +28,10 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ loading: true });
     try {
       const response = await apiClient.post("/auth/login/", { username, password });
-      localStorage.setItem("access_token", response.data.access);
-      localStorage.setItem("refresh_token", response.data.refresh);
-      set({ user: response.data.user, loading: false });
+      const payload = response.data.data;
+      localStorage.setItem("access_token", payload.access);
+      localStorage.setItem("refresh_token", payload.refresh);
+      set({ user: payload.user, loading: false });
     } catch (error) {
       set({ loading: false });
       throw error;
@@ -43,6 +44,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
   async loadMe() {
     if (!localStorage.getItem("access_token")) {
+      set({ user: null, loading: false });
       return;
     }
     set({ loading: true });
@@ -56,4 +58,3 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 }));
-

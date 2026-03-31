@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiClient } from "../api/client";
+import { useAuthStore } from "../app/auth-store";
 
 type ActivityLog = {
   id: number;
@@ -11,12 +12,18 @@ type ActivityLog = {
 };
 
 export function ActivityLogPage() {
+  const user = useAuthStore((state) => state.user);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [page, setPage] = useState(1);
   const [numPages, setNumPages] = useState(1);
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (user?.organization?.subscription_plan !== "PRO") {
+      setError("Activity logs are available only on the Pro plan.");
+      setLogs([]);
+      return;
+    }
     async function loadLogs() {
       try {
         const response = await apiClient.get(`/activity-logs/?page=${page}`);
@@ -28,7 +35,7 @@ export function ActivityLogPage() {
     }
 
     void loadLogs();
-  }, [page]);
+  }, [page, user?.organization?.subscription_plan]);
 
   return (
     <section>

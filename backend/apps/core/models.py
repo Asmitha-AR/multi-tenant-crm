@@ -1,6 +1,8 @@
 from django.db import models
 from django.utils import timezone
 
+from apps.core.tenant import get_current_organization
+
 
 class TimeStampedModel(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
@@ -40,6 +42,21 @@ class TenantScopedQuerySet(SoftDeleteQuerySet):
     def for_organization(self, organization):
         return self.filter(organization=organization)
 
+    def apply_current_organization(self):
+        organization = get_current_organization()
+        if organization is None:
+            return self
+        return self.for_organization(organization)
+
+
+class TenantScopedManager(models.Manager):
+    def get_queryset(self):
+        queryset = TenantScopedQuerySet(self.model, using=self._db)
+        return queryset.apply_current_organization()
+
+    def for_organization(self, organization):
+        return self.get_queryset().for_organization(organization)
+
 
 class TenantScopedModel(SoftDeleteModel):
     organization = models.ForeignKey(
@@ -48,7 +65,8 @@ class TenantScopedModel(SoftDeleteModel):
         related_name="%(class)ss",
     )
 
-    objects = TenantScopedQuerySet.as_manager()
+    objects = TenantScopedManager()
+    all_objects = TenantScopedQuerySet.as_manager()
 
     class Meta:
         abstract = True

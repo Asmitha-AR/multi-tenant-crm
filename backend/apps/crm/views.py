@@ -1,5 +1,5 @@
 from django.db.models import Q
-from rest_framework import filters, permissions, status, viewsets
+from rest_framework import permissions, status, viewsets
 
 from apps.core.api import api_success, paginated_payload
 from apps.core.models import ActivityAction
@@ -13,14 +13,18 @@ from apps.crm.services import log_crm_activity
 class TenantScopedModelViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, IsOrganizationMember, CanEditRecords, CanDeleteRecords]
     pagination_class = StandardResultsSetPagination
+    model = None
 
     def get_queryset(self):
-        queryset = self.queryset.for_organization(self.request.user.organization).active()
+        queryset = self.base_queryset()
         search = self.request.query_params.get("search")
         if search:
             queryset = self.apply_search(queryset, search)
         queryset = self.apply_filters(queryset)
         return queryset
+
+    def base_queryset(self):
+        return self.model.objects.active()
 
     def apply_search(self, queryset, search):
         return queryset
@@ -74,8 +78,11 @@ class TenantScopedModelViewSet(viewsets.ModelViewSet):
 
 
 class CompanyViewSet(TenantScopedModelViewSet):
-    queryset = Company.objects.select_related("organization")
+    model = Company
     serializer_class = CompanySerializer
+
+    def base_queryset(self):
+        return Company.objects.select_related("organization").active()
 
     def apply_search(self, queryset, search):
         return queryset.filter(
@@ -95,8 +102,11 @@ class CompanyViewSet(TenantScopedModelViewSet):
 
 
 class ContactViewSet(TenantScopedModelViewSet):
-    queryset = Contact.objects.select_related("organization", "company")
+    model = Contact
     serializer_class = ContactSerializer
+
+    def base_queryset(self):
+        return Contact.objects.select_related("organization", "company").active()
 
     def get_queryset(self):
         queryset = super().get_queryset()

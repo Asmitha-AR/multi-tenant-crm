@@ -11,9 +11,11 @@ This repository is structured for the Associate Full Stack Developer technical a
 ## Features Covered
 
 - Multi-tenant organization data model
+- Middleware and manager-level tenant isolation
 - Custom user with organization and role
 - JWT authentication
 - Role-based access control
+- Subscription-plan enforcement for Pro-only features
 - Company and contact CRUD endpoints
 - Soft delete strategy
 - Activity logging
@@ -64,6 +66,12 @@ Use `alpha_admin` for the easiest full CRUD demo.
 - Keep uploaded logo files small to stay within AWS Free Tier limits
 - Frontend company forms support logo upload and send multipart requests to the API
 
+## Subscription Plan Rules
+
+- `Pro` organizations can upload company logos
+- `Pro` organizations can access activity logs
+- `Basic` organizations still have core CRM access but are blocked from those premium features
+
 ## Verification
 
 - Backend checks: `.venv/bin/python backend/manage.py check`
@@ -82,6 +90,7 @@ Use `alpha_admin` for the easiest full CRUD demo.
 - Frontend supports login, dashboard, companies, contacts, and activity logs
 - Company and contact pages support create, edit, and delete flows with role-based restrictions
 - Tenant isolation was verified with seeded users across two organizations
+- Tenant context is applied through middleware and tenant-aware model managers
 
 ## Recommended Next Improvements
 

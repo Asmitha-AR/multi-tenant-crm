@@ -41,3 +41,15 @@ class CanEditRecords(BasePermission):
                 and request.user.role in {"ADMIN", "MANAGER"}
             )
         return True
+
+
+class IsProPlan(BasePermission):
+    message = "This feature is available only on the Pro plan."
+
+    def has_permission(self, request, view):
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and request.user.organization
+            and request.user.organization.subscription_plan == "PRO"
+        )

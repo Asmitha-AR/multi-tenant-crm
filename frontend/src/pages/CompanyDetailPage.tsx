@@ -24,6 +24,7 @@ export function CompanyDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
+  const isProPlan = user?.organization?.subscription_plan === "PRO";
   const [company, setCompany] = useState<Company | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [error, setError] = useState("");
@@ -163,7 +164,11 @@ export function CompanyDetailPage() {
             onChange={(e) => setCompanyForm((current) => ({ ...current, country: e.target.value }))}
             placeholder="Country"
           />
-          <input type="file" accept="image/*" onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)} />
+          {isProPlan ? (
+            <input type="file" accept="image/*" onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)} />
+          ) : (
+            <p className="plan-note">Logo upload is available on the Pro plan.</p>
+          )}
           <div className="actions">
             <button type="submit">Save Company</button>
             {canDeleteCompany ? (

@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from apps.accounts.models import Organization
 from apps.crm.models import Company, Contact
 
 
@@ -26,6 +27,14 @@ class CompanySerializer(serializers.ModelSerializer):
             return None
         request = self.context.get("request")
         return request.build_absolute_uri(obj.logo.url) if request else obj.logo.url
+
+    def validate_logo(self, value):
+        request = self.context.get("request")
+        if not value or not request or not request.user.is_authenticated:
+            return value
+        if request.user.organization.subscription_plan != Organization.SubscriptionPlan.PRO:
+            raise serializers.ValidationError("Logo upload is available only on the Pro plan.")
+        return value
 
 
 class ContactSerializer(serializers.ModelSerializer):
