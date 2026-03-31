@@ -22,6 +22,122 @@ This repository is structured for the Associate Full Stack Developer technical a
 - Versioned API routes under `/api/v1/`
 - React pages for login, dashboard, companies, company detail, and activity logs
 
+## Architecture Decisions
+
+### Why a multi-tenant approach
+
+This system is designed for multiple organizations to use the same application while keeping their data isolated.
+Instead of running a separate deployment per organization, the app stores tenant ownership through the `organization`
+relationship on core business records such as companies, contacts, and activity logs.
+
+This approach was chosen because it:
+
+- keeps the product scalable for multiple customers
+- reduces infrastructure duplication
+- allows role and subscription logic to be applied per organization
+- matches the assessment requirement for shared-platform tenant isolation
+
+### Why middleware and manager-level tenant isolation
+
+Tenant isolation is implemented in layers rather than relying only on view logic.
+
+- `CurrentOrganizationMiddleware` resolves the organization from the authenticated user or JWT request context
+- tenant-aware managers and querysets automatically scope data to the current organization
+- viewsets still apply explicit permission and filtering rules as an extra guard
+
+This layered approach was chosen because it reduces the risk of accidental cross-tenant access. Even if a developer
+forgets to manually filter one query in a view, the tenant-aware manager still provides a safer default.
+
+### Why JWT authentication
+
+JWT was chosen because the frontend is a separate React client and the backend is exposed as a REST API.
+Using JWT makes the authentication flow simple for a decoupled frontend/backend architecture.
+
+It also helps because it:
+
+- works well with SPA clients
+- keeps API requests stateless
+- supports role-aware access after login through bearer tokens
+- is easy to test in tools like Postman or browser-based API flows
+
+### Why soft delete
+
+Companies and contacts are soft deleted instead of being immediately removed from the database.
+The system marks them with `is_deleted` and `deleted_at`, and normal queries only return active records.
+
+This was chosen because it:
+
+- preserves auditability
+- avoids losing business records too quickly
+- fits CRM workflows where deleted records may need review or recovery
+- works naturally with activity logging and safer operational controls
+
+## Deployment And Production Readiness Notes
+
+### Environment-based configuration
+
+The project is configured through environment variables instead of hardcoded secrets or machine-specific values.
+This makes it easier to move between local development, staging, and production environments.
+
+Examples include:
+
+- Django secret key
+- debug mode
+- allowed hosts and CORS origins
+- database engine and connection details
+- JWT token lifetimes
+- AWS S3 storage settings
+
+### PostgreSQL-ready setup
+
+The backend supports a quick local SQLite workflow for development, but the settings are already prepared for
+PostgreSQL in a more production-oriented deployment. This was chosen to keep local setup simple while still showing
+that the application can be moved to a more scalable relational database without changing business logic.
+
+### S3-ready storage
+
+Company logo uploads are designed to work with local file storage in development and AWS S3 in a cloud environment.
+The storage backend switches based on environment configuration, which keeps the application portable and avoids
+hardcoded infrastructure dependencies.
+
+This means the same application code can:
+
+- use local `media/` storage during development
+- use S3 bucket storage in production
+- keep credentials outside the codebase
+
+### Security considerations
+
+Several choices were made with safer defaults in mind:
+
+- JWT-based authenticated API access
+- tenant isolation enforced in middleware, managers, and view permissions
+- role-based access control for Admin, Manager, and Staff users
+- subscription-based restrictions for premium features
+- soft delete to avoid immediate destructive data loss
+- environment-based secret handling instead of hardcoded credentials
+
+For a full production deployment, this could be extended further with:
+
+- HTTPS-only deployment
+- stronger secret management through a cloud secret store
+- stricter host and CORS configuration per environment
+- production logging and monitoring
+- rate limiting and additional API hardening
+
+### Scalability notes
+
+The system is structured to scale in a practical way for a CRM product:
+
+- tenant-scoped data model allows many organizations to share one platform safely
+- modular Django app structure keeps accounts, CRM, audits, and core logic separated
+- versioned API routes under `/api/v1/` support future iteration
+- PostgreSQL-ready configuration supports growth beyond local development
+- S3-ready file storage avoids keeping uploaded files only on the application server
+
+Even though this repository is presented as an assessment project, the implementation decisions were made to reflect
+how the same product could evolve toward a more production-ready deployment.
+
 ## Step-By-Step Setup From Clone To Run
 
 Follow these steps if you are starting from scratch.
@@ -90,7 +206,7 @@ python backend/manage.py migrate
 
 ### 7. Seed demo data
 
-This creates sample organizations, users, companies, and contacts for testing the app.
+This creates realistic sample organizations, users, companies, and contacts for testing the app.
 
 ```bash
 .venv/bin/python backend/manage.py seed_demo_data
@@ -143,6 +259,8 @@ Other seeded users:
 - `alpha_manager` / `alpha12345`
 - `alpha_staff` / `alpha12345`
 - `beta_admin` / `beta12345`
+- `beta_manager` / `beta12345`
+- `beta_staff` / `beta12345`
 
 ### 12. Verify the project is working
 
@@ -201,8 +319,18 @@ http://localhost:5173
 - `alpha_manager` / `alpha12345`
 - `alpha_staff` / `alpha12345`
 - `beta_admin` / `beta12345`
+- `beta_manager` / `beta12345`
+- `beta_staff` / `beta12345`
 
 Use `alpha_admin` for the easiest full CRUD demo.
+
+### Seeded Demo Data Overview
+
+- `Alpha Corp` uses the `Pro` plan
+- `Beta Ventures` uses the `Basic` plan
+- total seeded companies: `9`
+- total seeded contacts: `18`
+- each company includes sample contacts for a stronger demo flow
 
 ## Common Issues
 
