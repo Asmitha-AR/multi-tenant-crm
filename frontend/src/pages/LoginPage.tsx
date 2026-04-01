@@ -29,34 +29,13 @@ export function LoginPage() {
       <div className="auth-hero">
         <div className="auth-copy">
           <p className="auth-eyebrow">Multi-Tenant CRM</p>
-          <h1>Manage every client relationship with tenant-safe control.</h1>
-          <p className="auth-description">
-            Built for structured sales operations, team visibility, and role-aware access across multiple
-            organizations.
-          </p>
-          <div className="auth-highlights">
-            <div className="auth-highlight-card">
-              <span>01</span>
-              <strong>Tenant isolation</strong>
-              <p>Each organization works inside its own protected data boundary.</p>
-            </div>
-            <div className="auth-highlight-card">
-              <span>02</span>
-              <strong>Audit visibility</strong>
-              <p>Track important CRM changes with structured activity history.</p>
-            </div>
-            <div className="auth-highlight-card">
-              <span>03</span>
-              <strong>Role-based control</strong>
-              <p>Admin, Manager, and Staff flows align with real operational needs.</p>
-            </div>
-          </div>
+          <h1>Secure client operations for modern teams.</h1>
+          <p className="auth-description">A focused CRM workspace for companies, contacts, and daily customer operations.</p>
         </div>
 
         <form className="auth-panel" onSubmit={handleSubmit}>
           <div className="auth-panel-header">
-            <p className="auth-badge">Secure Workspace</p>
-            <h2>Welcome back</h2>
+            <h2>Welcome</h2>
             <p>Sign in to access your organization dashboard and customer workspace.</p>
           </div>
 

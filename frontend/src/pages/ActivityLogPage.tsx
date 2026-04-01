@@ -18,36 +18,67 @@ export function ActivityLogPage() {
   const [page, setPage] = useState(1);
   const [numPages, setNumPages] = useState(1);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState({
+    action: "",
+    model: "",
+    user: "",
+    date_from: "",
+    date_to: "",
+  });
 
-  useEffect(() => {
+  async function loadLogs() {
     if (user?.organization?.subscription_plan !== "PRO") {
       setError("Activity logs are available only on the Pro plan.");
       setLogs([]);
+      setLoading(false);
       return;
     }
-    async function loadLogs() {
-      try {
-        const response = await apiClient.get(`/activity-logs/?page=${page}`);
-        setLogs(response.data.data.results);
-        setNumPages(response.data.data.num_pages);
-      } catch {
-        setError("Failed to load activity logs.");
-      }
+    try {
+      setLoading(true);
+      setError("");
+      const params = new URLSearchParams({ page: String(page) });
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value) {
+          params.set(key, value);
+        }
+      });
+      const response = await apiClient.get(`/activity-logs/?${params.toString()}`);
+      setLogs(response.data.data.results);
+      setNumPages(response.data.data.num_pages);
+    } catch {
+      setError("We couldn't load activity logs right now. Please try again.");
+    } finally {
+      setLoading(false);
     }
+  }
 
+  useEffect(() => {
     void loadLogs();
-  }, [page, user?.organization?.subscription_plan]);
+  }, [page, user?.organization?.subscription_plan, filters]);
+
+  function updateFilter(name: keyof typeof filters, value: string) {
+    setPage(1);
+    setFilters((current) => ({ ...current, [name]: value }));
+  }
+
+  function clearFilters() {
+    setPage(1);
+    setFilters({
+      action: "",
+      model: "",
+      user: "",
+      date_from: "",
+      date_to: "",
+    });
+  }
 
   return (
     <section className="activity-shell">
       <div className="page-hero">
-        <div>
+        <div className="page-hero-copy">
           <p className="page-kicker">Audit Console</p>
           <h2>Activity Logs</h2>
-          <p className="page-description">
-            Review how users are creating, updating, and deleting records across your CRM workspace with a clean
-            activity timeline.
-          </p>
         </div>
 
         <div className="page-hero-card">
@@ -57,7 +88,75 @@ export function ActivityLogPage() {
         </div>
       </div>
 
-      {error ? <p className="error">{error}</p> : null}
+      {loading ? <div className="feedback-card"><strong>Loading activity logs</strong><p>Please wait while we prepare the audit timeline.</p></div> : null}
+      {error ? (
+        <div className="feedback-card feedback-card-error">
+          <div>
+            <strong>Audit feed unavailable</strong>
+            <p>{error}</p>
+          </div>
+          {isProPlan ? (
+            <button className="secondary-button" type="button" onClick={() => void loadLogs()}>
+              Retry
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="filter-card">
+        <div className="filter-grid filter-grid-activity">
+          <label className="form-field">
+            <span>Action</span>
+            <select value={filters.action} onChange={(e) => updateFilter("action", e.target.value)}>
+              <option value="">All actions</option>
+              <option value="CREATE">Create</option>
+              <option value="UPDATE">Update</option>
+              <option value="DELETE">Delete</option>
+            </select>
+          </label>
+
+          <label className="form-field">
+            <span>Model</span>
+            <select value={filters.model} onChange={(e) => updateFilter("model", e.target.value)}>
+              <option value="">All models</option>
+              <option value="Company">Company</option>
+              <option value="Contact">Contact</option>
+            </select>
+          </label>
+
+          <label className="form-field">
+            <span>User</span>
+            <input
+              value={filters.user}
+              onChange={(e) => updateFilter("user", e.target.value)}
+              placeholder="Search username"
+            />
+          </label>
+
+          <label className="form-field">
+            <span>Date from</span>
+            <input
+              type="date"
+              value={filters.date_from}
+              onChange={(e) => updateFilter("date_from", e.target.value)}
+            />
+          </label>
+
+          <label className="form-field">
+            <span>Date to</span>
+            <input
+              type="date"
+              value={filters.date_to}
+              onChange={(e) => updateFilter("date_to", e.target.value)}
+            />
+          </label>
+          <div className="filter-actions">
+            <button className="secondary-button" type="button" onClick={clearFilters}>
+              Clear Filters
+            </button>
+          </div>
+        </div>
+      </div>
 
       <div className="activity-overview">
         <article className="activity-overview-card activity-overview-card-accent">
@@ -76,6 +175,13 @@ export function ActivityLogPage() {
           <p>{isProPlan ? "Create, update, and delete actions are visible." : "Advanced audit access depends on plan level."}</p>
         </article>
       </div>
+
+      {!loading && !error && logs.length === 0 ? (
+        <div className="feedback-card feedback-card-empty">
+          <strong>No activity yet</strong>
+          <p>When users create, update, or delete records, those actions will appear here.</p>
+        </div>
+      ) : null}
 
       <div className="activity-grid">
         {logs.map((log) => (

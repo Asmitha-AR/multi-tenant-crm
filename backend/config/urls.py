@@ -7,11 +7,12 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 from apps.accounts.views import LoginView, MeView
 from apps.audits.views import ActivityLogListView
-from apps.crm.views import CompanyViewSet, ContactViewSet
+from apps.crm.views import CompanyViewSet, ContactViewSet, ServiceViewSet
 
 router = DefaultRouter()
 router.register("companies", CompanyViewSet, basename="company")
 router.register("contacts", ContactViewSet, basename="contact")
+router.register("services", ServiceViewSet, basename="service")
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -24,4 +25,3 @@ urlpatterns = [
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-

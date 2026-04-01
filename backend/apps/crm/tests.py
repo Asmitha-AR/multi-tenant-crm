@@ -1,16 +1,18 @@
 import shutil
 import tempfile
+from datetime import timedelta
 from io import BytesIO
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
+from django.utils import timezone
 from PIL import Image
 from rest_framework.test import APITestCase
 
 from apps.accounts.models import Organization, User
 from apps.audits.models import ActivityLog
 from apps.core.tenant import tenant_context
-from apps.crm.models import Company, Contact
+from apps.crm.models import Company, Contact, Service
 
 
 TEST_MEDIA_ROOT = tempfile.mkdtemp()
@@ -72,6 +74,14 @@ class CRMApiTests(APITestCase):
             phone="94771234567",
             role="Ops Lead",
         )
+        self.alpha_service = Service.objects.create(
+            organization=self.alpha,
+            company=self.alpha_company,
+            name="Support Maintenance",
+            status="ACTIVE",
+        )
+        self.alpha_company.services = ["Support Maintenance"]
+        self.alpha_company.save(update_fields=["services", "updated_at"])
 
     def authenticate(self, username, password):
         response = self.client.post(
@@ -90,6 +100,13 @@ class CRMApiTests(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["data"]["count"], 0)
+
+    def test_tenant_isolation_blocks_detail_access_to_other_organization_company(self):
+        self.authenticate("beta_admin_test", "beta12345")
+
+        response = self.client.get(f"/api/v1/companies/{self.alpha_company.id}/")
+
+        self.assertEqual(response.status_code, 404)
 
     def test_tenant_manager_scopes_records_from_current_organization_context(self):
         with tenant_context(self.alpha):
@@ -136,6 +153,32 @@ class CRMApiTests(APITestCase):
         delete_response = self.client.delete(f"/api/v1/companies/{self.alpha_company.id}/")
         self.assertEqual(delete_response.status_code, 403)
 
+    def test_admin_can_complete_company_crud_flow(self):
+        self.authenticate("alpha_admin_test", "alpha12345")
+
+        create_response = self.client.post(
+            "/api/v1/companies/",
+            {"name": "CRUD Company", "industry": "IT", "country": "Sri Lanka"},
+            format="json",
+        )
+        self.assertEqual(create_response.status_code, 201)
+        company_id = create_response.json()["data"]["id"]
+
+        retrieve_response = self.client.get(f"/api/v1/companies/{company_id}/")
+        self.assertEqual(retrieve_response.status_code, 200)
+        self.assertEqual(retrieve_response.json()["data"]["name"], "CRUD Company")
+
+        update_response = self.client.patch(
+            f"/api/v1/companies/{company_id}/",
+            {"country": "Singapore"},
+            format="json",
+        )
+        self.assertEqual(update_response.status_code, 200)
+        self.assertEqual(update_response.json()["data"]["country"], "Singapore")
+
+        delete_response = self.client.delete(f"/api/v1/companies/{company_id}/")
+        self.assertEqual(delete_response.status_code, 200)
+
     def test_activity_log_created_for_create_update_delete(self):
         self.authenticate("alpha_admin_test", "alpha12345")
 
@@ -162,6 +205,22 @@ class CRMApiTests(APITestCase):
         )
         self.assertEqual(actions, ["DELETE", "UPDATE", "CREATE"])
 
+    def test_soft_deleted_company_is_hidden_from_active_list(self):
+        self.authenticate("alpha_admin_test", "alpha12345")
+
+        response = self.client.delete(f"/api/v1/companies/{self.alpha_company.id}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.alpha_company.refresh_from_db()
+        self.assertTrue(self.alpha_company.is_deleted)
+        self.assertIsNotNone(self.alpha_company.deleted_at)
+        self.assertFalse(
+            Company.all_objects.active().filter(id=self.alpha_company.id).exists()
+        )
+        self.assertTrue(
+            Company.all_objects.filter(id=self.alpha_company.id, is_deleted=True).exists()
+        )
+
     def test_contact_email_must_be_unique_within_company(self):
         self.authenticate("alpha_admin_test", "alpha12345")
 
@@ -179,6 +238,17 @@ class CRMApiTests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
 
+    @override_settings(
+        STORAGES={
+            "default": {
+                "BACKEND": "django.core.files.storage.FileSystemStorage",
+                "OPTIONS": {"location": TEST_MEDIA_ROOT},
+            },
+            "staticfiles": {
+                "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+            },
+        }
+    )
     def test_company_logo_upload_works(self):
         self.authenticate("alpha_admin_test", "alpha12345")
         image_stream = BytesIO()
@@ -211,6 +281,74 @@ class CRMApiTests(APITestCase):
 
         self.assertEqual(response.status_code, 403)
 
+    def test_pro_plan_can_access_activity_logs(self):
+        self.authenticate("alpha_admin_test", "alpha12345")
+
+        response = self.client.get("/api/v1/activity-logs/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("results", response.json()["data"])
+
+    def test_activity_logs_support_action_model_user_and_date_filters(self):
+        older_log = ActivityLog.objects.create(
+            user=self.alpha_admin,
+            organization=self.alpha,
+            action="CREATE",
+            model_name="Company",
+            object_id=101,
+        )
+        newer_log = ActivityLog.objects.create(
+            user=self.alpha_manager,
+            organization=self.alpha,
+            action="UPDATE",
+            model_name="Contact",
+            object_id=202,
+        )
+        ActivityLog.objects.filter(id=older_log.id).update(created_at=timezone.now() - timedelta(days=3))
+        ActivityLog.objects.filter(id=newer_log.id).update(created_at=timezone.now())
+
+        self.authenticate("alpha_admin_test", "alpha12345")
+
+        action_response = self.client.get("/api/v1/activity-logs/?action=UPDATE")
+        self.assertEqual(action_response.status_code, 200)
+        self.assertTrue(
+            all(item["action"] == "UPDATE" for item in action_response.json()["data"]["results"])
+        )
+
+        model_response = self.client.get("/api/v1/activity-logs/?model=Contact")
+        self.assertEqual(model_response.status_code, 200)
+        self.assertTrue(
+            all(item["model_name"] == "Contact" for item in model_response.json()["data"]["results"])
+        )
+
+        user_response = self.client.get("/api/v1/activity-logs/?user=alpha_manager")
+        self.assertEqual(user_response.status_code, 200)
+        self.assertTrue(
+            all("alpha_manager" in item["performed_by"] for item in user_response.json()["data"]["results"])
+        )
+
+        today = timezone.now().date().isoformat()
+        date_response = self.client.get(f"/api/v1/activity-logs/?date_from={today}&date_to={today}")
+        self.assertEqual(date_response.status_code, 200)
+        self.assertTrue(
+            all(item["id"] != older_log.id for item in date_response.json()["data"]["results"])
+        )
+
+    def test_company_filters_support_partial_industry_and_country_values(self):
+        Company.objects.create(
+            organization=self.alpha,
+            name="Retail Orbit",
+            industry="Retail Technology",
+            country="United Arab Emirates",
+        )
+
+        self.authenticate("alpha_admin_test", "alpha12345")
+
+        response = self.client.get("/api/v1/companies/?industry=retail&country=arab")
+        self.assertEqual(response.status_code, 200)
+        results = response.json()["data"]["results"]
+        self.assertTrue(any(item["name"] == "Retail Orbit" for item in results))
+
     def test_basic_plan_cannot_upload_company_logo(self):
         self.authenticate("beta_admin_test", "beta12345")
         image_stream = BytesIO()
@@ -235,3 +373,102 @@ class CRMApiTests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("Logo upload is available only on the Pro plan.", str(response.json()))
+
+    @override_settings(
+        STORAGES={
+            "default": {
+                "BACKEND": "django.core.files.storage.FileSystemStorage",
+                "OPTIONS": {"location": TEST_MEDIA_ROOT},
+            },
+            "staticfiles": {
+                "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+            },
+        }
+    )
+    def test_basic_plan_cannot_update_existing_company_with_logo(self):
+        basic_company = Company.objects.create(
+            organization=self.beta,
+            name="Basic Existing",
+            industry="Retail",
+            country="India",
+        )
+        self.authenticate("beta_admin_test", "beta12345")
+
+        image_stream = BytesIO()
+        Image.new("RGB", (2, 2), color="green").save(image_stream, format="PNG")
+        image_stream.seek(0)
+        logo = SimpleUploadedFile(
+            "basic-update-logo.png",
+            image_stream.read(),
+            content_type="image/png",
+        )
+
+        response = self.client.patch(
+            f"/api/v1/companies/{basic_company.id}/",
+            {"logo": logo},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Logo upload is available only on the Pro plan.", str(response.json()))
+
+    def test_service_endpoint_hides_other_organization_records(self):
+        self.authenticate("beta_admin_test", "beta12345")
+
+        response = self.client.get("/api/v1/services/?search=Support")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["data"]["count"], 0)
+
+    def test_admin_can_create_update_and_delete_service_records(self):
+        self.authenticate("alpha_admin_test", "alpha12345")
+
+        create_response = self.client.post(
+            "/api/v1/services/",
+            {"company": self.alpha_company.id, "name": "CRM Onboarding"},
+            format="json",
+        )
+        self.assertEqual(create_response.status_code, 201)
+        service_id = create_response.json()["data"]["id"]
+
+        update_response = self.client.patch(
+            f"/api/v1/services/{service_id}/",
+            {"name": "CRM Enablement"},
+            format="json",
+        )
+        self.assertEqual(update_response.status_code, 200)
+
+        delete_response = self.client.delete(f"/api/v1/services/{service_id}/")
+        self.assertEqual(delete_response.status_code, 200)
+
+    def test_service_changes_sync_company_service_snapshot(self):
+        self.authenticate("alpha_admin_test", "alpha12345")
+
+        create_response = self.client.post(
+            "/api/v1/services/",
+            {"company": self.alpha_company.id, "name": "Implementation"},
+            format="json",
+        )
+        self.assertEqual(create_response.status_code, 201)
+        self.alpha_company.refresh_from_db()
+        self.assertEqual(sorted(self.alpha_company.services), ["Implementation", "Support Maintenance"])
+
+        service_id = create_response.json()["data"]["id"]
+        self.client.delete(f"/api/v1/services/{service_id}/")
+        self.alpha_company.refresh_from_db()
+        self.assertEqual(self.alpha_company.services, ["Support Maintenance"])
+
+    def test_service_endpoint_supports_status_filter(self):
+        Service.objects.create(
+            organization=self.alpha,
+            company=self.alpha_company,
+            name="Implementation",
+            status="PLANNED",
+        )
+        self.authenticate("alpha_admin_test", "alpha12345")
+
+        response = self.client.get("/api/v1/services/?status=PLANNED")
+
+        self.assertEqual(response.status_code, 200)
+        results = response.json()["data"]["results"]
+        self.assertTrue(all(item["status"] == "PLANNED" for item in results))

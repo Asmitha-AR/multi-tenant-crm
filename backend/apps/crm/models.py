@@ -8,6 +8,7 @@ class Company(TenantScopedModel):
     name = models.CharField(max_length=255)
     industry = models.CharField(max_length=120)
     country = models.CharField(max_length=120)
+    services = models.JSONField(default=list, blank=True)
     logo = models.ImageField(upload_to=logo_upload_path, blank=True, null=True)
 
     class Meta:
@@ -43,3 +44,26 @@ class Contact(TenantScopedModel):
     def __str__(self):
         return self.full_name
 
+
+class Service(TenantScopedModel):
+    class Status(models.TextChoices):
+        ACTIVE = "ACTIVE", "Active"
+        PLANNED = "PLANNED", "Planned"
+        PAUSED = "PAUSED", "Paused"
+
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name="service_items")
+    name = models.CharField(max_length=160)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE)
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "name"],
+                condition=models.Q(is_deleted=False),
+                name="unique_active_service_name_per_company",
+            )
+        ]
+
+    def __str__(self):
+        return self.name
