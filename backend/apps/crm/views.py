@@ -5,9 +5,9 @@ from apps.core.api import api_success, paginated_payload
 from apps.core.models import ActivityAction
 from apps.core.pagination import StandardResultsSetPagination
 from apps.core.permissions import CanDeleteRecords, CanEditRecords, IsOrganizationMember
-from apps.crm.models import Company, Contact
-from apps.crm.serializers import CompanySerializer, ContactSerializer
-from apps.crm.services import log_crm_activity
+from apps.crm.models import Company, Contact, Service
+from apps.crm.serializers import CompanySerializer, ContactSerializer, ServiceSerializer
+from apps.crm.services import log_crm_activity, sync_company_service_snapshot
 
 
 class TenantScopedModelViewSet(viewsets.ModelViewSet):
@@ -131,3 +131,54 @@ class ContactViewSet(TenantScopedModelViewSet):
         if role_name:
             queryset = queryset.filter(role__iexact=role_name)
         return queryset
+
+
+class ServiceViewSet(TenantScopedModelViewSet):
+    model = Service
+    serializer_class = ServiceSerializer
+
+    def base_queryset(self):
+        return Service.objects.select_related("organization", "company").active()
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        company_id = self.request.query_params.get("company")
+        if company_id:
+            queryset = queryset.filter(company_id=company_id)
+        return queryset
+
+    def apply_search(self, queryset, search):
+        return queryset.filter(
+            Q(name__icontains=search)
+            | Q(company__name__icontains=search)
+            | Q(company__industry__icontains=search)
+            | Q(company__country__icontains=search)
+        )
+
+    def apply_filters(self, queryset):
+        industry = (self.request.query_params.get("industry") or "").strip()
+        country = (self.request.query_params.get("country") or "").strip()
+        status_name = (self.request.query_params.get("status") or "").strip()
+        if industry:
+            queryset = queryset.filter(company__industry__icontains=industry)
+        if country:
+            queryset = queryset.filter(company__country__icontains=country)
+        if status_name:
+            queryset = queryset.filter(status__iexact=status_name)
+        return queryset
+
+    def perform_create(self, serializer):
+        instance = serializer.save(organization=self.request.user.organization)
+        sync_company_service_snapshot(instance.company)
+        log_crm_activity(user=self.request.user, action=ActivityAction.CREATE, instance=instance)
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        sync_company_service_snapshot(instance.company)
+        log_crm_activity(user=self.request.user, action=ActivityAction.UPDATE, instance=instance)
+
+    def perform_destroy(self, instance):
+        company = instance.company
+        instance.soft_delete()
+        sync_company_service_snapshot(company)
+        log_crm_activity(user=self.request.user, action=ActivityAction.DELETE, instance=instance)

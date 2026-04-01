@@ -1,14 +1,19 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { apiClient } from "../api/client";
 import { useAuthStore } from "../app/auth-store";
 
 type CompanySummary = {
   id: number;
+  name: string;
   industry: string;
+  country: string;
 };
 
 type ContactSummary = {
   id: number;
+  full_name: string;
+  role: string;
   created_at: string;
 };
 
@@ -82,33 +87,32 @@ export function DashboardPage() {
     accumulator[log.action] = (accumulator[log.action] ?? 0) + 1;
     return accumulator;
   }, {});
+  const topActivityAction =
+    Object.entries(recentActivityCounts).sort((left, right) => right[1] - left[1])[0]?.[0] ?? "No activity";
+  const recentContacts = [...contactsData]
+    .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
+    .slice(0, 4);
+  const featuredCompanies = [...companiesData].slice(0, 4);
+  const topIndustry = topIndustries[0]?.[0] ?? "No companies yet";
+  const marketCount = new Set(companiesData.map((company) => company.country).filter(Boolean)).size;
+  const latestContact = recentContacts[0];
 
   return (
     <section className="dashboard-shell">
       <div className="dashboard-hero">
         <div className="dashboard-hero-main">
-          <p className="dashboard-kicker">Organization Dashboard</p>
-          <h2>Welcome back, {user?.username}.</h2>
-          <p className="dashboard-description">
-            Here’s a quick overview of your {user?.organization?.name} workspace.
-          </p>
+          <p className="dashboard-kicker">Workspace Overview</p>
+          <h2>Welcome, {user?.username}.</h2>
+          <p className="dashboard-description">A live view of your companies, contacts, and workspace activity.</p>
 
           <div className="dashboard-quick-row">
-            <div className="dashboard-quick-chip">
-              <span>Workspace</span>
-              <strong>{user?.organization?.name}</strong>
-            </div>
-            <div className="dashboard-quick-chip">
-              <span>Role</span>
-              <strong>{user?.role}</strong>
-            </div>
           </div>
         </div>
 
         <div className="dashboard-hero-card">
           <span className="dashboard-hero-label">Current plan</span>
           <strong>{user?.organization?.subscription_plan}</strong>
-          <p>{isProPlan ? "Activity visibility and logo uploads are enabled." : "Upgrade to Pro for advanced workspace features."}</p>
+          <p>{isProPlan ? "Audit visibility and logo uploads are active for this workspace." : "Core CRM access is active for this workspace."}</p>
         </div>
       </div>
 
@@ -139,31 +143,6 @@ export function DashboardPage() {
           <span className="metric-label">Activity Logs</span>
           <h3>{loading ? "--" : metrics.activities}</h3>
           <p>{loading ? "Loading workspace data..." : isProPlan ? "Tracked changes in the workspace" : "Available on Pro plan"}</p>
-        </article>
-        <article className="metric-card">
-          <span className="metric-label">Access</span>
-          <h3>{user?.role}</h3>
-          <p>Role-based permission level</p>
-        </article>
-      </div>
-
-      <div className="dashboard-panels">
-        <article className="dashboard-panel">
-          <p className="dashboard-panel-kicker">Tenant Safety</p>
-          <h3>Organization data stays isolated</h3>
-          <p>All records are scoped to the authenticated organization.</p>
-        </article>
-
-        <article className="dashboard-panel">
-          <p className="dashboard-panel-kicker">Permissions</p>
-          <h3>Actions follow user roles</h3>
-          <p>Admin, Manager, and Staff access is limited by responsibility.</p>
-        </article>
-
-        <article className="dashboard-panel dashboard-panel-tint">
-          <p className="dashboard-panel-kicker">Next Step</p>
-          <h3>Continue from companies</h3>
-          <p>Use the sidebar to manage companies, contacts, and activity records.</p>
         </article>
       </div>
 
@@ -199,20 +178,32 @@ export function DashboardPage() {
           <p className="dashboard-panel-kicker">Recent activity</p>
           <h3>Latest audit summary</h3>
           {isProPlan ? (
-            <div className="dashboard-activity-summary">
-              <div className="dashboard-activity-pill">
-                <span>Create</span>
-                <strong>{recentActivityCounts.CREATE ?? 0}</strong>
+            <>
+              <div className="dashboard-activity-summary">
+                <div className="dashboard-activity-pill">
+                  <span>Create</span>
+                  <strong>{recentActivityCounts.CREATE ?? 0}</strong>
+                </div>
+                <div className="dashboard-activity-pill">
+                  <span>Update</span>
+                  <strong>{recentActivityCounts.UPDATE ?? 0}</strong>
+                </div>
+                <div className="dashboard-activity-pill">
+                  <span>Delete</span>
+                  <strong>{recentActivityCounts.DELETE ?? 0}</strong>
+                </div>
               </div>
-              <div className="dashboard-activity-pill">
-                <span>Update</span>
-                <strong>{recentActivityCounts.UPDATE ?? 0}</strong>
+              <div className="dashboard-activity-insights">
+                <div className="dashboard-activity-insight">
+                  <span>Total entries</span>
+                  <strong>{metrics.activities}</strong>
+                </div>
+                <div className="dashboard-activity-insight">
+                  <span>Most common</span>
+                  <strong>{topActivityAction}</strong>
+                </div>
               </div>
-              <div className="dashboard-activity-pill">
-                <span>Delete</span>
-                <strong>{recentActivityCounts.DELETE ?? 0}</strong>
-              </div>
-            </div>
+            </>
           ) : (
             <p className="page-feedback">Upgrade to Pro to review action-level audit summaries here.</p>
           )}
@@ -221,48 +212,102 @@ export function DashboardPage() {
         <article className="dashboard-feature-card">
           <p className="dashboard-panel-kicker">Weekly momentum</p>
           <h3>Contacts added this week</h3>
-          <div className="dashboard-weekly-stat">
-            <strong>{loading ? "--" : contactsAddedThisWeek}</strong>
-            <span>{contactsAddedThisWeek > 0 ? "New contact records created in the last 7 days." : "No new contacts were added in the last 7 days."}</span>
+          <div className="dashboard-weekly-card">
+            <div className="dashboard-weekly-stat">
+              <strong>{loading ? "--" : contactsAddedThisWeek}</strong>
+              <span>{contactsAddedThisWeek > 0 ? "New contact records created in the last 7 days." : "No new contacts were added in the last 7 days."}</span>
+            </div>
+            <div className="dashboard-weekly-highlight">
+              <span>Latest addition</span>
+              <strong>{latestContact?.full_name || "No recent contact"}</strong>
+              <p>{latestContact?.role || "Waiting for new relationship activity."}</p>
+            </div>
           </div>
         </article>
       </div>
 
-      <div className="dashboard-secondary">
+      <div className="dashboard-records">
         <article className="dashboard-feature-card">
-          <p className="dashboard-panel-kicker">Workspace Focus</p>
-          <h3>What this CRM is optimized for</h3>
-          <div className="dashboard-feature-list">
-            <div className="dashboard-feature-item">
-              <strong>Account organization</strong>
-              <span>Keep company records structured and easy to review.</span>
+          <div className="dashboard-section-header">
+            <div>
+              <p className="dashboard-panel-kicker">Latest Contacts</p>
+              <h3>Recent relationship updates</h3>
             </div>
-            <div className="dashboard-feature-item">
-              <strong>Contact tracking</strong>
-              <span>Store the right people against the right companies.</span>
-            </div>
-            <div className="dashboard-feature-item">
-              <strong>Controlled access</strong>
-              <span>Keep teams aligned with role-based permissions.</span>
-            </div>
+            <Link className="secondary-button" to="/contacts">
+              View Contacts
+            </Link>
+          </div>
+          <div className="dashboard-record-list">
+            {loading ? (
+              <p className="page-feedback">Loading recent contacts...</p>
+            ) : recentContacts.length > 0 ? (
+              recentContacts.map((contact) => (
+                <div className="dashboard-record-item" key={contact.id}>
+                  <div className="dashboard-record-avatar">
+                    {contact.full_name?.slice(0, 2).toUpperCase() || "CT"}
+                  </div>
+                  <div className="dashboard-record-copy">
+                    <strong>{contact.full_name}</strong>
+                    <span>
+                      {contact.role || "Workspace contact"} • {new Date(contact.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="page-feedback">No contacts available yet.</p>
+            )}
           </div>
         </article>
 
         <article className="dashboard-feature-card dashboard-feature-card-accent">
-          <p className="dashboard-panel-kicker">Quick Actions</p>
-          <h3>Best places to continue</h3>
-          <div className="dashboard-action-grid">
-            <div className="dashboard-action-tile">
-              <strong>Open Companies</strong>
-              <span>Review account records and update company details.</span>
+          <div className="dashboard-section-header">
+            <div>
+              <p className="dashboard-panel-kicker">Recent Companies</p>
+              <h3>Accounts in the workspace</h3>
             </div>
-            <div className="dashboard-action-tile">
-              <strong>Manage Contacts</strong>
-              <span>Open a company to add or edit related contacts.</span>
+            <Link className="secondary-button" to="/companies">
+              View Companies
+            </Link>
+          </div>
+          <div className="dashboard-record-list">
+            {loading ? (
+              <p className="page-feedback">Loading companies...</p>
+            ) : featuredCompanies.length > 0 ? (
+              featuredCompanies.map((company) => (
+                <div className="dashboard-record-item" key={company.id}>
+                  <div className="dashboard-record-badge">{company.name.slice(0, 1).toUpperCase()}</div>
+                  <div className="dashboard-record-copy">
+                    <strong>{company.name}</strong>
+                    <span>
+                      {company.industry || "General"} {company.country ? `• ${company.country}` : ""}
+                    </span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="page-feedback">No companies available yet.</p>
+            )}
+          </div>
+        </article>
+
+        <article className="dashboard-feature-card">
+          <div className="dashboard-section-header">
+            <div>
+              <p className="dashboard-panel-kicker">Workspace Snapshot</p>
+              <h3>What matters today</h3>
             </div>
-            <div className="dashboard-action-tile">
-              <strong>View Activity</strong>
-              <span>{isProPlan ? "Audit history is ready from the sidebar." : "Available after upgrading the workspace plan."}</span>
+          </div>
+          <div className="dashboard-snapshot-grid">
+            <div className="dashboard-snapshot-tile dashboard-snapshot-tile-spotlight">
+              <span>Leading sector</span>
+              <strong>{topIndustry}</strong>
+              <p>Most represented industry in the current company mix.</p>
+            </div>
+            <div className="dashboard-snapshot-tile dashboard-snapshot-tile-accent">
+              <span>Markets covered</span>
+              <strong>{loading ? "--" : marketCount}</strong>
+              <p>Active countries represented across the workspace companies.</p>
             </div>
           </div>
         </article>

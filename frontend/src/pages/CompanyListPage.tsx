@@ -38,6 +38,14 @@ export function CompanyListPage() {
     editingCompany?.logo_url,
     logoFile,
   ]);
+  const industryOptions = useMemo(
+    () => Array.from(new Set(companies.map((company) => company.industry).filter(Boolean))).sort(),
+    [companies],
+  );
+  const countryOptions = useMemo(
+    () => Array.from(new Set(companies.map((company) => company.country).filter(Boolean))).sort(),
+    [companies],
+  );
 
   useEffect(() => {
     return () => {
@@ -185,90 +193,88 @@ export function CompanyListPage() {
   return (
     <section className="companies-shell">
       <div className="page-hero">
-        <div>
+        <div className="page-hero-copy">
           <p className="page-kicker">CRM Directory</p>
           <h2>Companies</h2>
-          <p className="page-description">
-            Organize client accounts, keep branding assets attached to each company, and move into contact management
-            from a cleaner workspace.
-          </p>
         </div>
 
         <div className="page-hero-card">
           <span className="page-hero-label">Current results</span>
           <strong>{companies.length}</strong>
           <p>{loading ? "Refreshing company records..." : "Visible companies on this page."}</p>
+          {canEdit ? (
+            <button
+              className="primary-button page-hero-button"
+              type="button"
+              onClick={() => {
+                setEditingId(null);
+                setForm({ name: "", industry: "", country: "" });
+                setLogoFile(null);
+                setRemoveLogo(false);
+                setShowCreateDialog(true);
+              }}
+            >
+              Create New Company
+            </button>
+          ) : null}
         </div>
-      </div>
-
-      <div className="company-toolbar">
-        <label className="search-field">
-          <span>Search</span>
-          <input
-            value={search}
-            onChange={(e) => {
-              setPage(1);
-              setSearch(e.target.value);
-            }}
-            placeholder="Search companies"
-          />
-        </label>
-        <div className="toolbar-meta">
-          <span>{numPages} pages</span>
-          <strong>{isProPlan ? "Pro workspace" : "Basic workspace"}</strong>
-        </div>
-        {canEdit ? (
-          <button
-            className="primary-button company-toolbar-button"
-            type="button"
-            onClick={() => {
-              setEditingId(null);
-              setForm({ name: "", industry: "", country: "" });
-              setLogoFile(null);
-              setRemoveLogo(false);
-              setShowCreateDialog(true);
-            }}
-          >
-            Create New Company
-          </button>
-        ) : null}
       </div>
 
       <div className="filter-card">
-        <div className="filter-card-header">
-          <div>
-            <p className="page-kicker">Company Filters</p>
-            <h3>Refine the company list</h3>
-          </div>
-          <button className="secondary-button" type="button" onClick={clearCompanyFilters}>
-            Clear Filters
-          </button>
-        </div>
-
         <div className="filter-grid filter-grid-compact">
           <label className="form-field">
-            <span>Industry</span>
+            <span>Search</span>
             <input
+              value={search}
+              onChange={(e) => {
+                setPage(1);
+                setSearch(e.target.value);
+              }}
+              placeholder="Search companies"
+            />
+          </label>
+
+          <label className="form-field">
+            <span>Industry</span>
+            <select
               value={industryFilter}
               onChange={(e) => {
                 setPage(1);
                 setIndustryFilter(e.target.value);
               }}
-              placeholder="Filter by industry"
-            />
+            >
+              <option value="">All industries</option>
+              {industryOptions.map((industry) => (
+                <option key={industry} value={industry}>
+                  {industry}
+                </option>
+              ))}
+            </select>
           </label>
 
           <label className="form-field">
             <span>Country</span>
-            <input
+            <select
               value={countryFilter}
               onChange={(e) => {
                 setPage(1);
                 setCountryFilter(e.target.value);
               }}
-              placeholder="Filter by country"
-            />
+            >
+              <option value="">All countries</option>
+              {countryOptions.map((country) => (
+                <option key={country} value={country}>
+                  {country}
+                </option>
+              ))}
+            </select>
           </label>
+
+          <div className="filter-actions">
+            <button className="secondary-button" type="button" onClick={clearCompanyFilters}>
+              Clear Filters
+            </button>
+          </div>
         </div>
       </div>
 

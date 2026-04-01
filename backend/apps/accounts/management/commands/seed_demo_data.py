@@ -1,7 +1,8 @@
 from django.core.management.base import BaseCommand
 
 from apps.accounts.models import Organization, User
-from apps.crm.models import Company, Contact
+from apps.crm.models import Company, Contact, Service
+from apps.crm.services import replace_company_services
 
 
 class Command(BaseCommand):
@@ -57,6 +58,11 @@ class Command(BaseCommand):
                 "name": "Acme Logistics",
                 "industry": "Logistics",
                 "country": "Sri Lanka",
+                "services": [
+                    ("Freight Coordination", Service.Status.ACTIVE),
+                    ("Warehouse Support", Service.Status.ACTIVE),
+                    ("Route Planning", Service.Status.PLANNED),
+                ],
                 "contacts": [
                     ("Kamal Perera", "operations@acme.test", "94771234567", "Operations Lead"),
                     ("Nadeesha Silva", "accounts@acme.test", "94779876543", "Account Manager"),
@@ -67,6 +73,11 @@ class Command(BaseCommand):
                 "name": "Nova Health",
                 "industry": "Healthcare",
                 "country": "Singapore",
+                "services": [
+                    ("Clinic Setup", Service.Status.ACTIVE),
+                    ("Health Data Support", Service.Status.ACTIVE),
+                    ("Care Operations Consulting", Service.Status.PLANNED),
+                ],
                 "contacts": [
                     ("Sara Lim", "hello@nova.test", "6581234567", "Partnership Manager"),
                     ("Daniel Koh", "growth@nova.test", "6587654321", "Business Lead"),
@@ -77,6 +88,11 @@ class Command(BaseCommand):
                 "name": "Atlas Trading",
                 "industry": "Retail",
                 "country": "United Arab Emirates",
+                "services": [
+                    ("Procurement Advisory", Service.Status.ACTIVE),
+                    ("Vendor Sourcing", Service.Status.ACTIVE),
+                    ("Retail Expansion Support", Service.Status.PLANNED),
+                ],
                 "contacts": [
                     ("Nimal Perera", "nimal@atlas.test", "971501112223", "Regional Buyer"),
                     ("Farah Khan", "farah@atlas.test", "971501119999", "Procurement Director"),
@@ -87,6 +103,11 @@ class Command(BaseCommand):
                 "name": "BlueWave Retail",
                 "industry": "Retail",
                 "country": "India",
+                "services": [
+                    ("Store Rollout", Service.Status.ACTIVE),
+                    ("Category Planning", Service.Status.PLANNED),
+                    ("Merchandising Support", Service.Status.ACTIVE),
+                ],
                 "contacts": [
                     ("Anika Rao", "anika@bluewave.test", "919876543210", "Store Expansion Manager"),
                     ("Rishi Menon", "rishi@bluewave.test", "919123456789", "Category Lead"),
@@ -97,6 +118,11 @@ class Command(BaseCommand):
                 "name": "Orbit Tech",
                 "industry": "Software",
                 "country": "Malaysia",
+                "services": [
+                    ("CRM Implementation", Service.Status.ACTIVE),
+                    ("Support Operations", Service.Status.ACTIVE),
+                    ("Customer Success Enablement", Service.Status.PAUSED),
+                ],
                 "contacts": [
                     ("Ishan Fernando", "ishan@orbit.test", "60123456789", "Solutions Consultant"),
                     ("Mei Tan", "mei@orbit.test", "60199887766", "Customer Success Lead"),
@@ -107,6 +133,10 @@ class Command(BaseCommand):
                 "name": "Beta Foods",
                 "industry": "Food & Beverage",
                 "country": "India",
+                "services": [
+                    ("Distribution Planning", Service.Status.ACTIVE),
+                    ("Supplier Coordination", Service.Status.PLANNED),
+                ],
                 "contacts": [
                     ("Arjun Patel", "arjun@betafoods.test", "918888777666", "Distribution Manager"),
                     ("Kavya Shah", "kavya@betafoods.test", "917777666555", "Procurement Lead"),
@@ -117,6 +147,11 @@ class Command(BaseCommand):
                 "name": "Cedar Manufacturing",
                 "industry": "Manufacturing",
                 "country": "Sri Lanka",
+                "services": [
+                    ("Production Oversight", Service.Status.ACTIVE),
+                    ("Vendor Management", Service.Status.ACTIVE),
+                    ("Plant Coordination", Service.Status.PAUSED),
+                ],
                 "contacts": [
                     ("Tharindu Jayasuriya", "tharindu@cedar.test", "94771230000", "Plant Supervisor"),
                     ("Ayesha Nawarathne", "ayesha@cedar.test", "94774567890", "Vendor Coordinator"),
@@ -127,6 +162,11 @@ class Command(BaseCommand):
                 "name": "Summit Services",
                 "industry": "Business Services",
                 "country": "Bangladesh",
+                "services": [
+                    ("Client Support", Service.Status.ACTIVE),
+                    ("Operations Delivery", Service.Status.ACTIVE),
+                    ("Managed Services", Service.Status.PLANNED),
+                ],
                 "contacts": [
                     ("Nusrat Jahan", "nusrat@summit.test", "8801712345678", "Client Services Lead"),
                     ("Tariq Hasan", "tariq@summit.test", "8801812345678", "Operations Manager"),
@@ -137,6 +177,11 @@ class Command(BaseCommand):
                 "name": "Luma Interiors",
                 "industry": "Design",
                 "country": "Thailand",
+                "services": [
+                    ("Interior Planning", Service.Status.ACTIVE),
+                    ("Project Design", Service.Status.ACTIVE),
+                    ("Client Presentation Support", Service.Status.PLANNED),
+                ],
                 "contacts": [
                     ("Pimchanok Suriya", "pim@luma.test", "66812345678", "Project Designer"),
                     ("Narin Chai", "narin@luma.test", "66887654321", "Client Partner"),
@@ -150,6 +195,7 @@ class Command(BaseCommand):
                 name=company_spec["name"],
                 industry=company_spec["industry"],
                 country=company_spec["country"],
+                services=company_spec.get("services", []),
             )
             for full_name, email, phone, role in company_spec["contacts"]:
                 self.upsert_contact(
@@ -161,15 +207,24 @@ class Command(BaseCommand):
                     role=role,
                 )
 
-    def upsert_company(self, organization, name, industry, country):
+    def upsert_company(self, organization, name, industry, country, services):
         company, _ = Company.objects.get_or_create(
             organization=organization,
             name=name,
-            defaults={"industry": industry, "country": country},
+            defaults={
+                "industry": industry,
+                "country": country,
+                "services": [item[0] if isinstance(item, tuple) else item for item in services],
+            },
         )
         company.industry = industry
         company.country = country
-        company.save(update_fields=["industry", "country"])
+        company.services = [item[0] if isinstance(item, tuple) else item for item in services]
+        company.save(update_fields=["industry", "country", "services"])
+        replace_company_services(company, [item[0] if isinstance(item, tuple) else item for item in services])
+        for item in services:
+            service_name, status = item if isinstance(item, tuple) else (item, Service.Status.ACTIVE)
+            Service.objects.filter(company=company, name__iexact=service_name).update(status=status)
         return company
 
     def upsert_contact(self, organization, company, full_name, email, phone, role):

@@ -149,46 +149,25 @@ export function ContactsPage() {
   return (
     <section className="contacts-shell">
       <div className="page-hero">
-        <div>
-          <p className="page-kicker">Relationship Directory</p>
+        <div className="page-hero-copy">
+          <p className="page-kicker">People Directory</p>
           <h2>Contacts</h2>
-          <p className="page-description">
-            Review people across the workspace, filter by company or role, and add new relationships without leaving
-            the daily CRM flow.
-          </p>
         </div>
 
         <div className="page-hero-card">
-          <span className="page-hero-label">Visible contacts</span>
+          <span className="page-hero-label">Visible people</span>
           <strong>{contacts.length}</strong>
-          <p>{loading ? "Refreshing the relationship directory..." : "Contacts on the current page."}</p>
+          <p>{loading ? "Refreshing the people directory..." : "Contacts on the current page."}</p>
+          {canManageContacts ? (
+            <button className="primary-button page-hero-button" type="button" onClick={() => setShowQuickAdd(true)}>
+              Add Contact
+            </button>
+          ) : null}
         </div>
-      </div>
-
-      <div className="contacts-toolbar">
-        <div className="toolbar-meta">
-          <span>Workspace coverage</span>
-          <strong>{companies.length} companies connected</strong>
-        </div>
-        {canManageContacts ? (
-          <button className="primary-button" type="button" onClick={() => setShowQuickAdd(true)}>
-            Quick Add Contact
-          </button>
-        ) : null}
       </div>
 
       <div className="filter-card">
-        <div className="filter-card-header">
-          <div>
-            <p className="page-kicker">Contact Filters</p>
-            <h3>Find the right relationship faster</h3>
-          </div>
-          <button className="secondary-button" type="button" onClick={clearFilters}>
-            Clear Filters
-          </button>
-        </div>
-
-        <div className="filter-grid">
+        <div className="filter-grid filter-grid-contacts">
           <label className="form-field">
             <span>Search</span>
             <input
@@ -197,18 +176,18 @@ export function ContactsPage() {
                 setPage(1);
                 setFilters((current) => ({ ...current, search: event.target.value }));
               }}
-              placeholder="Search name, email, or role"
+              placeholder="Search name, email, or title"
             />
           </label>
           <label className="form-field">
-            <span>Role</span>
+            <span>Title</span>
             <input
               value={filters.role}
               onChange={(event) => {
                 setPage(1);
                 setFilters((current) => ({ ...current, role: event.target.value }));
               }}
-              placeholder="Filter by role"
+              placeholder="Filter by title"
             />
           </label>
           <label className="form-field">
@@ -228,6 +207,11 @@ export function ContactsPage() {
               ))}
             </select>
           </label>
+          <div className="filter-actions">
+            <button className="secondary-button" type="button" onClick={clearFilters}>
+              Clear Filters
+            </button>
+          </div>
         </div>
       </div>
 
@@ -285,7 +269,7 @@ export function ContactsPage() {
                 <strong>{contact.phone || "Not provided"}</strong>
               </div>
               <div>
-                <span>Role</span>
+                <span>Title</span>
                 <strong>{contact.role}</strong>
               </div>
             </div>
@@ -385,7 +369,7 @@ export function ContactsPage() {
                   />
                 </label>
                 <label className="form-field form-field-full">
-                  <span>Role</span>
+                  <span>Title</span>
                   <input
                     value={form.role}
                     onChange={(event) => setForm((current) => ({ ...current, role: event.target.value }))}

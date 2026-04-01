@@ -12,7 +12,7 @@ from rest_framework.test import APITestCase
 from apps.accounts.models import Organization, User
 from apps.audits.models import ActivityLog
 from apps.core.tenant import tenant_context
-from apps.crm.models import Company, Contact
+from apps.crm.models import Company, Contact, Service
 
 
 TEST_MEDIA_ROOT = tempfile.mkdtemp()
@@ -74,6 +74,14 @@ class CRMApiTests(APITestCase):
             phone="94771234567",
             role="Ops Lead",
         )
+        self.alpha_service = Service.objects.create(
+            organization=self.alpha,
+            company=self.alpha_company,
+            name="Support Maintenance",
+            status="ACTIVE",
+        )
+        self.alpha_company.services = ["Support Maintenance"]
+        self.alpha_company.save(update_fields=["services", "updated_at"])
 
     def authenticate(self, username, password):
         response = self.client.post(
@@ -403,3 +411,64 @@ class CRMApiTests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("Logo upload is available only on the Pro plan.", str(response.json()))
+
+    def test_service_endpoint_hides_other_organization_records(self):
+        self.authenticate("beta_admin_test", "beta12345")
+
+        response = self.client.get("/api/v1/services/?search=Support")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["data"]["count"], 0)
+
+    def test_admin_can_create_update_and_delete_service_records(self):
+        self.authenticate("alpha_admin_test", "alpha12345")
+
+        create_response = self.client.post(
+            "/api/v1/services/",
+            {"company": self.alpha_company.id, "name": "CRM Onboarding"},
+            format="json",
+        )
+        self.assertEqual(create_response.status_code, 201)
+        service_id = create_response.json()["data"]["id"]
+
+        update_response = self.client.patch(
+            f"/api/v1/services/{service_id}/",
+            {"name": "CRM Enablement"},
+            format="json",
+        )
+        self.assertEqual(update_response.status_code, 200)
+
+        delete_response = self.client.delete(f"/api/v1/services/{service_id}/")
+        self.assertEqual(delete_response.status_code, 200)
+
+    def test_service_changes_sync_company_service_snapshot(self):
+        self.authenticate("alpha_admin_test", "alpha12345")
+
+        create_response = self.client.post(
+            "/api/v1/services/",
+            {"company": self.alpha_company.id, "name": "Implementation"},
+            format="json",
+        )
+        self.assertEqual(create_response.status_code, 201)
+        self.alpha_company.refresh_from_db()
+        self.assertEqual(sorted(self.alpha_company.services), ["Implementation", "Support Maintenance"])
+
+        service_id = create_response.json()["data"]["id"]
+        self.client.delete(f"/api/v1/services/{service_id}/")
+        self.alpha_company.refresh_from_db()
+        self.assertEqual(self.alpha_company.services, ["Support Maintenance"])
+
+    def test_service_endpoint_supports_status_filter(self):
+        Service.objects.create(
+            organization=self.alpha,
+            company=self.alpha_company,
+            name="Implementation",
+            status="PLANNED",
+        )
+        self.authenticate("alpha_admin_test", "alpha12345")
+
+        response = self.client.get("/api/v1/services/?status=PLANNED")
+
+        self.assertEqual(response.status_code, 200)
+        results = response.json()["data"]["results"]
+        self.assertTrue(all(item["status"] == "PLANNED" for item in results))

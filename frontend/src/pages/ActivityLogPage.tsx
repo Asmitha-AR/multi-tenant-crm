@@ -76,13 +76,9 @@ export function ActivityLogPage() {
   return (
     <section className="activity-shell">
       <div className="page-hero">
-        <div>
+        <div className="page-hero-copy">
           <p className="page-kicker">Audit Console</p>
           <h2>Activity Logs</h2>
-          <p className="page-description">
-            Review how users are creating, updating, and deleting records across your CRM workspace with a clean
-            activity timeline.
-          </p>
         </div>
 
         <div className="page-hero-card">
@@ -108,17 +104,7 @@ export function ActivityLogPage() {
       ) : null}
 
       <div className="filter-card">
-        <div className="filter-card-header">
-          <div>
-            <p className="page-kicker">Audit Filters</p>
-            <h3>Refine the timeline</h3>
-          </div>
-          <button className="secondary-button" type="button" onClick={clearFilters}>
-            Clear Filters
-          </button>
-        </div>
-
-        <div className="filter-grid">
+        <div className="filter-grid filter-grid-activity">
           <label className="form-field">
             <span>Action</span>
             <select value={filters.action} onChange={(e) => updateFilter("action", e.target.value)}>
@@ -164,6 +150,11 @@ export function ActivityLogPage() {
               onChange={(e) => updateFilter("date_to", e.target.value)}
             />
           </label>
+          <div className="filter-actions">
+            <button className="secondary-button" type="button" onClick={clearFilters}>
+              Clear Filters
+            </button>
+          </div>
         </div>
       </div>
 
