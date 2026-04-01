@@ -76,7 +76,7 @@ python backend/manage.py migrate
 
 ### 7. Seed demo data
 
-This creates realistic sample organizations, users, companies, and contacts for testing the app.
+This creates realistic sample organizations, users, companies, contacts, and service records for testing the app.
 
 ```bash
 .venv/bin/python backend/manage.py seed_demo_data
@@ -166,9 +166,14 @@ npm run build
 - Logo preview, size validation, and remove/change actions
 - Company and contact CRUD endpoints
 - Dedicated contacts page with quick-add contact modal
+- Dedicated services page for service catalog, company assignment, and status tracking
+- Per-service add, edit, delete, and company assignment workflow
+- Service catalog overview with reusable service list
+- Service status tracking with `Active`, `Planned`, and `Paused`
 - Company contact count visibility in list and detail views
 - Company search, industry filter, and country filter
 - Contact search, company filter, and role filter
+- Service search, industry filter, country filter, and status filter
 - Soft delete strategy
 - Activity logging
 - Activity log filters by action, model, user, and date range
@@ -256,9 +261,9 @@ hardcoded infrastructure dependencies.
 
 Same codebase can use:
 
-- use local `media/` storage during development
-- use S3 bucket storage in production
-- keep credentials outside the codebase
+- local `media/` storage during development
+- S3 bucket storage in production
+- credentials outside the codebase
 
 ### Security considerations
 
@@ -297,6 +302,7 @@ These decisions keep the assessment project closer to a realistic production-ori
 - `Beta Ventures` uses the `Basic` plan
 - total seeded companies: `9`
 - total seeded contacts: `18`
+- total seeded service records: `26`
 - total seeded demo users: `6`
 
 ## Common Issues
@@ -358,6 +364,7 @@ The backend currently includes API tests for the main CRM risk areas:
 - role-based permissions for Admin, Manager, and Staff
 - subscription restrictions for Pro-only features
 - company CRUD flow
+- service CRUD flow and service status filtering
 - soft delete behavior
 - activity log creation and access
 - contact email uniqueness validation
@@ -378,13 +385,8 @@ Run the backend API test suite with:
 
 - Initial migrations are included
 - Demo seed command is included
-- Frontend supports login, dashboard, companies, contacts, and activity logs
+- Frontend supports login, dashboard, services, companies, contacts, and activity logs
 - Company and contact pages support create, edit, and delete flows with role-based restrictions
+- Services page supports separate service records with per-company assignment and status tracking
 - Tenant isolation was verified with seeded users across two organizations
 - Tenant context is applied through middleware and tenant-aware model managers
-
-## Recommended Next Improvements
-
-- Add automated API tests for permission and isolation coverage
-- Add company logo upload UI for the S3 path
-- Record the final walkthrough and architecture explanation
